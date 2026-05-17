@@ -179,6 +179,16 @@ function getFallbackUserFromQuery() {
   };
 }
 
+function getOrCreateWebDebugId() {
+  const key = "electro_web_debug_id";
+  let value = localStorage.getItem(key) || "";
+  if (!value) {
+    value = `web_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    localStorage.setItem(key, value);
+  }
+  return value;
+}
+
 function buildDefaultClientName(actor) {
   const fullName = `${actor.firstName || ""} ${actor.lastName || ""}`.trim();
   if (fullName) return fullName;
@@ -1165,8 +1175,10 @@ async function initClientState() {
 async function bootstrap() {
   const tgUser = getTelegramUser();
   const fallbackUser = getFallbackUserFromQuery();
+  const isTelegramContext = Boolean(tgUser?.telegramId);
+  const debugId = !isTelegramContext ? getOrCreateWebDebugId() : "";
   state.actor = {
-    telegramId: tgUser?.telegramId || fallbackUser.telegramId || "",
+    telegramId: tgUser?.telegramId || fallbackUser.telegramId || debugId,
     username: tgUser?.username || fallbackUser.username || "",
     firstName: tgUser?.firstName || fallbackUser.firstName || "",
     lastName: tgUser?.lastName || fallbackUser.lastName || "",

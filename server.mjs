@@ -612,7 +612,7 @@ async function routeApi(req, res, url) {
     const actor = getActorFromRequest(req, url, {});
     const roleParam = ensureString(url.searchParams.get("role"));
     const localRole = roleParam === "master" || roleParam === "admin" ? "master" : "client";
-    const role = actor.telegramId ? actor.role : localRole;
+    const role = actor.telegramId || actor.username ? actor.role : localRole;
     const effectiveActor = { ...actor, role };
     upsertUser(store, effectiveActor);
     await saveStore(store);
