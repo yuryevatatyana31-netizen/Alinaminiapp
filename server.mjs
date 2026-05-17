@@ -620,6 +620,13 @@ function clearBotBookingState(store, chatId) {
   delete store.meta.pendingClientBookings[chatId];
 }
 
+function underlineText(value) {
+  return String(value)
+    .split("")
+    .map((char) => `${char}\u0332`)
+    .join("");
+}
+
 function buildBotCalendarKeyboard(store, month, duration) {
   const availableDates = new Set(getAvailableDaysForMonth(store, month, duration));
   const days = listDaysInMonth(month);
@@ -644,7 +651,7 @@ function buildBotCalendarKeyboard(store, month, duration) {
     const day = Number(date.slice(-2));
     const isAvailable = availableDates.has(date);
     currentRow.push({
-      text: isAvailable ? String(day) : "·",
+      text: isAvailable ? underlineText(day) : String(day),
       callback_data: isAvailable ? `bot_day:${date}:${duration}` : "noop"
     });
     if (currentRow.length === 7) {
