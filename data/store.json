@@ -1,0 +1,12 @@
+{
+  "meta": {
+    "timezone": "Europe/Moscow",
+    "defaultWorkStart": "08:00",
+    "defaultWorkEnd": "20:00",
+    "defaultDurationMinutes": 60
+  },
+  "users": [],
+  "dayConfigs": {},
+  "bookings": [],
+  "messages": []
+}

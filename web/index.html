@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Электрологиня · Mini App</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-bg"></div>
+    <main class="app" id="app">
+      <header class="app-header">
+        <h1>Электрологиня</h1>
+        <p id="roleBadge" class="role-badge">Клиент</p>
+      </header>
+
+      <section id="clientRoot" class="panel-stack"></section>
+      <section id="masterRoot" class="panel-stack hidden"></section>
+    </main>
+
+    <div id="toast" class="toast hidden"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
