@@ -51,6 +51,8 @@ const state = {
     selectedDateIso: "",
     dayConfig: null,
     dayBookings: [],
+    scheduleExpanded: false,
+    requestsExpanded: false,
     freeSlotsExpanded: false,
     freeSlots: [],
     requestsFilter: "all",
@@ -138,6 +140,12 @@ function panel(title, bodyHtml, expanded = false, id = "") {
     }
     if (id === "history") {
       state.client.historyExpanded = !body.classList.contains("hidden");
+    }
+    if (id === "master-schedule") {
+      state.master.scheduleExpanded = !body.classList.contains("hidden");
+    }
+    if (id === "master-requests") {
+      state.master.requestsExpanded = !body.classList.contains("hidden");
     }
   });
   return el;
@@ -1086,8 +1094,8 @@ function renderMaster() {
     ${renderMasterFreeSlots()}
   `;
   const requestsBody = renderMasterRequests();
-  const schedulePanel = panel("Рабочий график", scheduleBody, false, "master-schedule");
-  const requestsPanel = panel("Заявки", requestsBody, false, "master-requests");
+  const schedulePanel = panel("Рабочий график", scheduleBody, state.master.scheduleExpanded, "master-schedule");
+  const requestsPanel = panel("Заявки", requestsBody, state.master.requestsExpanded, "master-requests");
   masterRoot.innerHTML = "";
   masterRoot.append(schedulePanel, requestsPanel);
   renderMasterCalendar();
@@ -1153,6 +1161,8 @@ async function initMasterState() {
   state.master.selectedDateIso = "";
   state.master.dayConfig = null;
   state.master.dayBookings = [];
+  state.master.scheduleExpanded = false;
+  state.master.requestsExpanded = false;
   state.master.freeSlots = [];
   state.master.freeSlotsExpanded = false;
   state.master.requestsFilter = "all";
@@ -1211,8 +1221,10 @@ async function bootstrap() {
   roleBadge.textContent = formatRole(state.role);
 
   if (state.role === "master" || state.role === "admin") {
-    clientRoot.classList.add("hidden");
+    clientRoot.classList.remove("hidden");
     masterRoot.classList.remove("hidden");
+    await initClientState();
+    renderClient();
     await initMasterState();
     return;
   }
