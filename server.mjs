@@ -25,6 +25,15 @@ const STATUS_REBOOKED_BY_MASTER = "перезаписано мастером";
 const STATUS_REJECTED = "отклонена";
 
 const ACTIVE_BOOKING_STATUSES = new Set([STATUS_PENDING, STATUS_CONFIRMED]);
+const STATUS_BY_ALIAS = {
+  pending: STATUS_PENDING,
+  confirmed: STATUS_CONFIRMED,
+  completed: STATUS_COMPLETED,
+  cancelled: STATUS_CANCELLED,
+  canceled: STATUS_CANCELLED,
+  rebooked_by_master: STATUS_REBOOKED_BY_MASTER,
+  rejected: STATUS_REJECTED
+};
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -444,6 +453,23 @@ function checkRequiredNamePhone(name, phone) {
   return { name: safeName, phone: normalizedPhone };
 }
 
+function normalizeStatusInput(statusInput) {
+  const source = ensureString(statusInput);
+  if (!source) return "";
+  const lowered = source.toLowerCase();
+  if (STATUS_BY_ALIAS[lowered]) return STATUS_BY_ALIAS[lowered];
+  const canonical = [
+    STATUS_PENDING,
+    STATUS_CONFIRMED,
+    STATUS_COMPLETED,
+    STATUS_CANCELLED,
+    STATUS_REBOOKED_BY_MASTER,
+    STATUS_REJECTED
+  ];
+  const matched = canonical.find((item) => item.toLowerCase() === lowered);
+  return matched || "";
+}
+
 async function notifyMasterAboutBooking(store, booking, actor, type = "new_booking") {
   const masterChatId = findMasterChatId(store);
   const actorName = buildClientDisplayName(actor);
@@ -840,11 +866,14 @@ async function routeApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/master/bookings") {
     const actor = getActorFromRequest(req, url, {});
     if (!assertMasterRole(actor)) return sendJson(res, 403, { ok: false, error: "FORBIDDEN" });
-    const status = ensureString(url.searchParams.get("status")).toLowerCase();
+    const statusRaw = ensureString(url.searchParams.get("status"));
+    const status = normalizeStatusInput(statusRaw);
     const store = await loadStore();
     let items = [...store.bookings];
-    if (status && status !== "all") {
-      items = items.filter((booking) => booking.status.toLowerCase() === status);
+    if (statusRaw && statusRaw.toLowerCase() !== "all") {
+      items = status
+        ? items.filter((booking) => booking.status === status)
+        : [];
     }
     items.sort((a, b) => {
       if (a.date === b.date) return a.start.localeCompare(b.start);
@@ -871,7 +900,7 @@ async function routeApi(req, res, url) {
     const actor = getActorFromRequest(req, url, body);
     if (!assertMasterRole(actor)) return sendJson(res, 403, { ok: false, error: "FORBIDDEN" });
     const bookingId = ensureString(body.bookingId);
-    const nextStatus = ensureString(body.status);
+    const nextStatus = normalizeStatusInput(body.status);
     if (!bookingId || !nextStatus) return sendJson(res, 400, { ok: false, error: "INVALID_INPUT" });
     const allowedStatuses = [STATUS_PENDING, STATUS_CONFIRMED, STATUS_COMPLETED, STATUS_CANCELLED, STATUS_REBOOKED_BY_MASTER, STATUS_REJECTED];
     if (!allowedStatuses.includes(nextStatus)) {
