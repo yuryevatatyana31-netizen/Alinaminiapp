@@ -118,6 +118,12 @@ function panel(title, bodyHtml, expanded = false, id = "") {
   head.addEventListener("click", () => {
     body.classList.toggle("hidden");
     arrow.textContent = body.classList.contains("hidden") ? "▼" : "▲";
+    if (id === "new-booking") {
+      state.client.newBookingExpanded = !body.classList.contains("hidden");
+    }
+    if (id === "history") {
+      state.client.historyExpanded = !body.classList.contains("hidden");
+    }
   });
   return el;
 }
@@ -382,17 +388,93 @@ async function loadHistory() {
   state.history = data.items || [];
 }
 
-function renderHistoryPreview() {
+async function handleHistoryCancel(bookingId) {
+  const booking = state.history.find((item) => item.id === bookingId);
+  if (!booking) return;
+  const name = ensureString(state.client.name);
+  const phone = ensureString(state.client.phone);
+  if (!name || !isValidPhone(phone)) {
+    state.client.formError = "Введите имя и номер телефона и нажмите \"Отправить заявку\".";
+    state.client.newBookingExpanded = true;
+    renderClient();
+    scrollToElement("#identityBlock");
+    return;
+  }
+  const cancelMessage = ensureString(state.client.cancelMessage || "Алина, я не смогу прийти в это время.");
+  try {
+    await api("/api/client/cancel-booking", {
+      method: "POST",
+      body: JSON.stringify({
+        user: state.actor,
+        bookingId
+      })
+    });
+    await api("/api/client/send-master-message", {
+      method: "POST",
+      body: JSON.stringify({
+        user: state.actor,
+        type: "cancel_booking",
+        name,
+        phone,
+        duration: booking.durationMinutes || getDurationSafe(),
+        message: `${cancelMessage}\nЗапись: ${booking.line}`
+      })
+    });
+    state.client.pendingCancelBookingId = "";
+    state.client.cancelMessage = "";
+    await loadAvailableDays();
+    await loadHistory();
+    renderClient();
+    showToast("Запись отменена");
+  } catch (error) {
+    showToast(error?.message || "Не удалось отменить запись");
+  }
+}
+
+function startRebooking(booking) {
+  state.client.duration = String(booking.durationMinutes || 60);
+  state.client.selectedDateIso = "";
+  state.client.selectedSlot = null;
+  state.client.slots = [];
+  state.client.newBookingExpanded = true;
+  state.client.historyExpanded = false;
+  state.client.pendingCancelBookingId = "";
+  state.client.cancelMessage = "";
+  loadAvailableDays()
+    .then(() => {
+      renderClient();
+      scrollToElement("[data-panel-id='new-booking']");
+    })
+    .catch(() => {
+      showToast("Ошибка загрузки слотов");
+    });
+}
+
+function renderHistoryList() {
   if (!state.history.length) {
     return `<p class="helper">История пока пуста.</p>`;
   }
   return state.history
-    .slice(0, 4)
     .map(
       (item) => `
         <div class="history-item">
           <div class="line-compact">${item.line}</div>
           <div class="status">${item.status}</div>
+          <div class="btn-row">
+            <button type="button" class="btn ghost" data-history-action="cancel-open" data-booking-id="${item.id}">Отменить</button>
+            <button type="button" class="btn secondary" data-history-action="rebook" data-booking-id="${item.id}">Перезаписаться</button>
+          </div>
+          ${
+            state.client.pendingCancelBookingId === item.id
+              ? `
+                <div class="field">
+                  <label>Сообщение мастеру</label>
+                  <textarea data-cancel-message>${state.client.cancelMessage || "Алина, я не смогу прийти в это время."}</textarea>
+                </div>
+                <button type="button" class="btn" data-history-action="cancel-send" data-booking-id="${item.id}">Отправить мастеру</button>
+              `
+              : ""
+          }
         </div>
       `
     )
@@ -464,11 +546,11 @@ function renderClient() {
       }
       <button id="sendBookingBtn" class="btn" type="button">Отправить заявку</button>
     `,
-    false,
+    state.client.newBookingExpanded,
     "new-booking"
   );
 
-  const panelHistory = panel("История", renderHistoryPreview(), false, "history");
+  const panelHistory = panel("История", renderHistoryList(), state.client.historyExpanded, "history");
   clientRoot.innerHTML = "";
   clientRoot.append(panelNew, panelHistory);
 
@@ -512,6 +594,35 @@ function renderClient() {
       scrollToElement("#identityBlock");
     });
   });
+
+  document.querySelectorAll("[data-history-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.getAttribute("data-history-action");
+      const bookingId = btn.getAttribute("data-booking-id");
+      const booking = state.history.find((item) => item.id === bookingId);
+      if (!booking) return;
+
+      if (action === "rebook") {
+        startRebooking(booking);
+        return;
+      }
+
+      if (action === "cancel-open") {
+        state.client.historyExpanded = true;
+        state.client.pendingCancelBookingId = bookingId;
+        state.client.cancelMessage = "Алина, я не смогу прийти в это время.";
+        renderClient();
+        scrollToElement("[data-cancel-message]");
+        return;
+      }
+
+      if (action === "cancel-send") {
+        const messageTextarea = document.querySelector("[data-cancel-message]");
+        state.client.cancelMessage = ensureString(messageTextarea?.value || state.client.cancelMessage);
+        await handleHistoryCancel(bookingId);
+      }
+    });
+  });
 }
 
 function renderMasterSkeleton() {
@@ -541,6 +652,10 @@ async function initClientState() {
   state.client.noSlotsMessage = "";
   state.client.name = buildDefaultClientName(state.actor);
   state.client.phone = localStorage.getItem("electro_client_phone") || "";
+  state.client.newBookingExpanded = false;
+  state.client.historyExpanded = false;
+  state.client.pendingCancelBookingId = "";
+  state.client.cancelMessage = "";
   await loadAvailableDays();
   await loadHistory();
 }
