@@ -458,6 +458,7 @@ async function answerCallbackQuery(callbackQueryId, text = "") {
 async function sendStartMessage(chatId) {
   const text = [
     "Здравствуйте! Я бот-помощник Алины для записи на процедуры.",
+    "Нажмите кнопку «Записаться», чтобы открыть мини-приложение.",
     "Если кнопка «Записаться» не сработала, нажмите «Открыть в браузере»."
   ].join("\n");
   return sendTelegramMessage(chatId, text, {
@@ -497,21 +498,26 @@ function normalizeStatusInput(statusInput) {
 
 async function notifyMasterAboutBooking(store, booking, actor, type = "new_booking") {
   const masterChatId = findMasterChatId(store);
-  const actorName = buildClientDisplayName(actor);
   const header = type === "cancelled" ? "Отмена записи" : type === "rescheduled" ? "Перезапись мастером" : "Новая заявка";
   const message = [
     `${header}`,
-    `мя: ${booking.clientName}`,
+    `Имя: ${booking.clientName}`,
     `Телефон: ${booking.clientPhone}`,
-    `Клиент Telegram: ${actorName}`,
     `Дата: ${formatDateRu(booking.date)}`,
     `Время: ${booking.start}-${booking.end}`,
     `Длительность: ${booking.durationMinutes} мин`,
     `Статус: ${booking.status}`
   ].join("\n");
+  const inlineKeyboard =
+    type === "new_booking"
+      ? [
+          [{ text: "Согласовать", callback_data: `approve_booking:${booking.id}` }],
+          [{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]
+        ]
+      : [[{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]];
   return sendTelegramMessage(masterChatId, message, {
     reply_markup: {
-      inline_keyboard: [[{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]]
+      inline_keyboard: inlineKeyboard
     }
   });
 }
@@ -542,7 +548,7 @@ async function handleClientContactMasterCallback(store, callbackQuery) {
   const masterChatId = findMasterChatId(store);
   const message = [
     "Клиент написал через кнопку из напоминания.",
-    `мя: ${booking.clientName}`,
+    `Имя: ${booking.clientName}`,
     `Телефон: ${booking.clientPhone}`,
     `Дата: ${formatDateRu(booking.date)}`,
     `Время: ${booking.start}-${booking.end}`,
@@ -568,6 +574,29 @@ async function handleMasterReplyStart(store, callbackQuery) {
   };
   await answerCallbackQuery(callbackQuery.id, "Напишите ответ клиенту");
   await sendTelegramMessage(masterChatId, "Введите текст сообщения клиенту одним следующим сообщением.");
+}
+
+async function handleMasterApproveBooking(store, callbackQuery) {
+  const callbackData = ensureString(callbackQuery.data);
+  const [, bookingId] = callbackData.split(":");
+  const booking = store.bookings.find((item) => item.id === bookingId);
+  if (!booking) {
+    await answerCallbackQuery(callbackQuery.id, "Заявка не найдена");
+    return;
+  }
+  if (booking.status !== STATUS_PENDING) {
+    await answerCallbackQuery(callbackQuery.id, "Заявка уже обработана");
+    return;
+  }
+  booking.status = STATUS_CONFIRMED;
+  booking.updatedAt = new Date().toISOString();
+  await answerCallbackQuery(callbackQuery.id, "Заявка согласована");
+  if (booking.clientTelegramId && !booking.clientTelegramId.startsWith("web_")) {
+    await sendTelegramMessage(
+      booking.clientTelegramId,
+      `Ваша заявка согласована.\nДата: ${formatDateRu(booking.date)}\nВремя: ${booking.start}-${booking.end}\nДлительность: ${booking.durationMinutes} мин.`
+    );
+  }
 }
 
 function serializeBookingForClient(booking) {
@@ -1018,6 +1047,14 @@ async function routeApi(req, res, url) {
     const result = await withStoreMutate(async (store) => {
       const booking = store.bookings.find((item) => item.id === bookingId);
       if (!booking) return { ok: false, status: 404, error: "BOOKING_NOT_FOUND" };
+      if (!booking.clientTelegramId || booking.clientTelegramId.startsWith("web_")) {
+        return {
+          ok: false,
+          status: 422,
+          error: "CLIENT_TELEGRAM_UNAVAILABLE",
+          message: "Клиент отправил заявку из веб-режима без Telegram-чата."
+        };
+      }
       await sendTelegramMessage(booking.clientTelegramId, `Сообщение от мастера:\n${text}`);
       return { ok: true };
     });
@@ -1032,6 +1069,8 @@ async function routeApi(req, res, url) {
 
       if (callbackQuery?.data?.startsWith("contact_master:")) {
         await handleClientContactMasterCallback(store, callbackQuery);
+      } else if (callbackQuery?.data?.startsWith("approve_booking:")) {
+        await handleMasterApproveBooking(store, callbackQuery);
       } else if (callbackQuery?.data?.startsWith("reply_client:")) {
         await handleMasterReplyStart(store, callbackQuery);
       } else if (message?.chat?.id) {
@@ -1051,9 +1090,14 @@ async function routeApi(req, res, url) {
         }
         const pending = store.meta.pendingMasterReplies[chatId];
         if (pending && messageText) {
-          await sendTelegramMessage(pending.clientTelegramId, `  :\n${messageText}`);
+          if (!pending.clientTelegramId || pending.clientTelegramId.startsWith("web_")) {
+            delete store.meta.pendingMasterReplies[chatId];
+            await sendTelegramMessage(chatId, "Клиент в веб-режиме: прямой ответ в Telegram недоступен.");
+            return { ok: true };
+          }
+          await sendTelegramMessage(pending.clientTelegramId, `Сообщение от мастера:\n${messageText}`);
           delete store.meta.pendingMasterReplies[chatId];
-          await sendTelegramMessage(chatId, "  .");
+          await sendTelegramMessage(chatId, "Ответ клиенту отправлен.");
         }
       }
       return { ok: true };
