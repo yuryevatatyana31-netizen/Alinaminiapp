@@ -144,13 +144,15 @@ function panel(title, bodyHtml, expanded = false, id = "") {
 }
 
 async function api(path, options = {}) {
+  const miniAppBase = window.location.pathname.startsWith("/miniapp") ? "/miniapp" : "";
+  const resolvedPath = path.startsWith("/api/") ? `${miniAppBase}${path}` : path;
   const headers = {
     "Content-Type": "application/json",
     "x-telegram-id": state.actor.telegramId || "",
     "x-telegram-username": state.actor.username || "",
     ...(options.headers || {})
   };
-  const response = await fetch(path, { ...options, headers });
+  const response = await fetch(resolvedPath, { ...options, headers });
   const data = await response.json();
   if (!response.ok) throw data;
   return data;

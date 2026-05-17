@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+﻿import { createServer } from "node:http";
 import { readFile, writeFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
@@ -16,13 +16,14 @@ const ADMIN_TELEGRAM_USERNAME = (process.env.ADMIN_TELEGRAM_USERNAME || "Tatyana
 const MASTER_TELEGRAM_ID = process.env.MASTER_TELEGRAM_ID || "";
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || "";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const MINIAPP_PUBLIC_URL = process.env.MINIAPP_PUBLIC_URL || "https://electrologinyabot.fd-yureva.ru/miniapp/";
 
-const STATUS_PENDING = "на согласовании";
-const STATUS_CONFIRMED = "подтверждена";
-const STATUS_COMPLETED = "завершена";
-const STATUS_CANCELLED = "отменена";
-const STATUS_REBOOKED_BY_MASTER = "перезаписано мастером";
-const STATUS_REJECTED = "отклонена";
+const STATUS_PENDING = "РЅР° СЃРѕРіР»Р°СЃРѕРІР°РЅРёРё";
+const STATUS_CONFIRMED = "РїРѕРґС‚РІРµСЂР¶РґРµРЅР°";
+const STATUS_COMPLETED = "Р·Р°РІРµСЂС€РµРЅР°";
+const STATUS_CANCELLED = "РѕС‚РјРµРЅРµРЅР°";
+const STATUS_REBOOKED_BY_MASTER = "РїРµСЂРµР·Р°РїРёСЃР°РЅРѕ РјР°СЃС‚РµСЂРѕРј";
+const STATUS_REJECTED = "РѕС‚РєР»РѕРЅРµРЅР°";
 
 const ACTIVE_BOOKING_STATUSES = new Set([STATUS_PENDING, STATUS_CONFIRMED]);
 const STATUS_BY_ALIAS = {
@@ -391,10 +392,10 @@ function sanitizeDuration(rawDuration, fallback = 60) {
 }
 
 function formatBookingCompact(booking) {
-  return `${formatDateRu(booking.date)} · ${booking.start} · ${booking.durationMinutes} мин`;
+  return `${formatDateRu(booking.date)} В· ${booking.start} В· ${booking.durationMinutes} РјРёРЅ`;
 }
 
-function buildClientDisplayName(actor, fallback = "Клиент") {
+function buildClientDisplayName(actor, fallback = "РљР»РёРµРЅС‚") {
   const fullName = `${ensureString(actor.firstName)} ${ensureString(actor.lastName)}`.trim();
   const username = normalizeUsername(actor.username);
   if (fullName) return fullName;
@@ -442,6 +443,18 @@ async function answerCallbackQuery(callbackQueryId, text = "") {
   });
 }
 
+async function sendStartMessage(chatId) {
+  const text = [
+    "Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ! Р­С‚Рѕ Р±РѕС‚ Р·Р°РїРёСЃРё.",
+    "РќР°Р¶РјРёС‚Рµ РєРЅРѕРїРєСѓ РЅРёР¶Рµ, С‡С‚РѕР±С‹ РѕС‚РєСЂС‹С‚СЊ РјРёРЅРё-РїСЂРёР»РѕР¶РµРЅРёРµ Рё Р·Р°РїРёСЃР°С‚СЊСЃСЏ."
+  ].join("\n");
+  return sendTelegramMessage(chatId, text, {
+    reply_markup: {
+      inline_keyboard: [[{ text: "РћС‚РєСЂС‹С‚СЊ Р·Р°РїРёСЃСЊ", web_app: { url: MINIAPP_PUBLIC_URL } }]]
+    }
+  });
+}
+
 function assertMasterRole(actor) {
   return actor.role === "master" || actor.role === "admin";
 }
@@ -473,20 +486,20 @@ function normalizeStatusInput(statusInput) {
 async function notifyMasterAboutBooking(store, booking, actor, type = "new_booking") {
   const masterChatId = findMasterChatId(store);
   const actorName = buildClientDisplayName(actor);
-  const header = type === "cancelled" ? "Отмена записи" : type === "rescheduled" ? "Перезапись мастером" : "Новая заявка";
+  const header = type === "cancelled" ? "РћС‚РјРµРЅР° Р·Р°РїРёСЃРё" : type === "rescheduled" ? "РџРµСЂРµР·Р°РїРёСЃСЊ РјР°СЃС‚РµСЂРѕРј" : "РќРѕРІР°СЏ Р·Р°СЏРІРєР°";
   const message = [
     `${header}`,
-    `Имя: ${booking.clientName}`,
-    `Телефон: ${booking.clientPhone}`,
-    `Клиент Telegram: ${actorName}`,
-    `Дата: ${formatDateRu(booking.date)}`,
-    `Время: ${booking.start}-${booking.end}`,
-    `Длительность: ${booking.durationMinutes} мин`,
-    `Статус: ${booking.status}`
+    `РРјСЏ: ${booking.clientName}`,
+    `РўРµР»РµС„РѕРЅ: ${booking.clientPhone}`,
+    `РљР»РёРµРЅС‚ Telegram: ${actorName}`,
+    `Р”Р°С‚Р°: ${formatDateRu(booking.date)}`,
+    `Р’СЂРµРјСЏ: ${booking.start}-${booking.end}`,
+    `Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ: ${booking.durationMinutes} РјРёРЅ`,
+    `РЎС‚Р°С‚СѓСЃ: ${booking.status}`
   ].join("\n");
   return sendTelegramMessage(masterChatId, message, {
     reply_markup: {
-      inline_keyboard: [[{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]]
+      inline_keyboard: [[{ text: "РћС‚РІРµС‚РёС‚СЊ РєР»РёРµРЅС‚Сѓ", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]]
     }
   });
 }
@@ -496,12 +509,12 @@ async function notifyClientWithReminder(store, booking, beforeHours) {
   if (!clientChatId) return;
   const firstLine =
     beforeHours === 24
-      ? `Здравствуйте! Напоминаю, что вы записаны на ${formatDateRu(booking.date)} в ${booking.start} (${booking.durationMinutes} мин). Жду вас!`
-      : `Здравствуйте! Напоминаю, ваша запись уже через 2 часа — в ${booking.start} (${booking.durationMinutes} мин). Жду вас!`;
-  const secondLine = "Если у вас изменились планы, обязательно напишите.";
+      ? `Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ! РќР°РїРѕРјРёРЅР°СЋ, С‡С‚Рѕ РІС‹ Р·Р°РїРёСЃР°РЅС‹ РЅР° ${formatDateRu(booking.date)} РІ ${booking.start} (${booking.durationMinutes} РјРёРЅ). Р–РґСѓ РІР°СЃ!`
+      : `Р—РґСЂР°РІСЃС‚РІСѓР№С‚Рµ! РќР°РїРѕРјРёРЅР°СЋ, РІР°С€Р° Р·Р°РїРёСЃСЊ СѓР¶Рµ С‡РµСЂРµР· 2 С‡Р°СЃР° вЂ” РІ ${booking.start} (${booking.durationMinutes} РјРёРЅ). Р–РґСѓ РІР°СЃ!`;
+  const secondLine = "Р•СЃР»Рё Сѓ РІР°СЃ РёР·РјРµРЅРёР»РёСЃСЊ РїР»Р°РЅС‹, РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ РЅР°РїРёС€РёС‚Рµ.";
   await sendTelegramMessage(clientChatId, `${firstLine}\n${secondLine}`, {
     reply_markup: {
-      inline_keyboard: [[{ text: "Написать мастеру", callback_data: `contact_master:${booking.id}` }]]
+      inline_keyboard: [[{ text: "РќР°РїРёСЃР°С‚СЊ РјР°СЃС‚РµСЂСѓ", callback_data: `contact_master:${booking.id}` }]]
     }
   });
 }
@@ -511,25 +524,25 @@ async function handleClientContactMasterCallback(store, callbackQuery) {
   const [, bookingId] = callbackData.split(":");
   const booking = store.bookings.find((item) => item.id === bookingId);
   if (!booking) {
-    await answerCallbackQuery(callbackQuery.id, "Запись не найдена");
+    await answerCallbackQuery(callbackQuery.id, "Р—Р°РїРёСЃСЊ РЅРµ РЅР°Р№РґРµРЅР°");
     return;
   }
   const masterChatId = findMasterChatId(store);
   const message = [
-    "Клиент написал через кнопку из напоминания.",
-    `Имя: ${booking.clientName}`,
-    `Телефон: ${booking.clientPhone}`,
-    `Дата: ${formatDateRu(booking.date)}`,
-    `Время: ${booking.start}-${booking.end}`,
-    `Текущий статус: ${booking.status}`
+    "РљР»РёРµРЅС‚ РЅР°РїРёСЃР°Р» С‡РµСЂРµР· РєРЅРѕРїРєСѓ РёР· РЅР°РїРѕРјРёРЅР°РЅРёСЏ.",
+    `РРјСЏ: ${booking.clientName}`,
+    `РўРµР»РµС„РѕРЅ: ${booking.clientPhone}`,
+    `Р”Р°С‚Р°: ${formatDateRu(booking.date)}`,
+    `Р’СЂРµРјСЏ: ${booking.start}-${booking.end}`,
+    `РўРµРєСѓС‰РёР№ СЃС‚Р°С‚СѓСЃ: ${booking.status}`
   ].join("\n");
   await sendTelegramMessage(masterChatId, message, {
     reply_markup: {
-      inline_keyboard: [[{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]]
+      inline_keyboard: [[{ text: "РћС‚РІРµС‚РёС‚СЊ РєР»РёРµРЅС‚Сѓ", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]]
     }
   });
-  await answerCallbackQuery(callbackQuery.id, "Сообщение мастеру отправлено");
-  await sendTelegramMessage(callbackQuery.from.id, "Передала мастеру. Спасибо за сообщение.");
+  await answerCallbackQuery(callbackQuery.id, "РЎРѕРѕР±С‰РµРЅРёРµ РјР°СЃС‚РµСЂСѓ РѕС‚РїСЂР°РІР»РµРЅРѕ");
+  await sendTelegramMessage(callbackQuery.from.id, "РџРµСЂРµРґР°Р»Р° РјР°СЃС‚РµСЂСѓ. РЎРїР°СЃРёР±Рѕ Р·Р° СЃРѕРѕР±С‰РµРЅРёРµ.");
 }
 
 async function handleMasterReplyStart(store, callbackQuery) {
@@ -541,8 +554,8 @@ async function handleMasterReplyStart(store, callbackQuery) {
     clientTelegramId,
     createdAt: new Date().toISOString()
   };
-  await answerCallbackQuery(callbackQuery.id, "Напишите ответ клиенту");
-  await sendTelegramMessage(masterChatId, "Введите текст сообщения клиенту одним следующим сообщением.");
+  await answerCallbackQuery(callbackQuery.id, "РќР°РїРёС€РёС‚Рµ РѕС‚РІРµС‚ РєР»РёРµРЅС‚Сѓ");
+  await sendTelegramMessage(masterChatId, "Р’РІРµРґРёС‚Рµ С‚РµРєСЃС‚ СЃРѕРѕР±С‰РµРЅРёСЏ РєР»РёРµРЅС‚Сѓ РѕРґРЅРёРј СЃР»РµРґСѓСЋС‰РёРј СЃРѕРѕР±С‰РµРЅРёРµРј.");
 }
 
 function serializeBookingForClient(booking) {
@@ -645,7 +658,7 @@ async function routeApi(req, res, url) {
       return sendJson(res, 422, {
         ok: false,
         error: "NAME_PHONE_REQUIRED",
-        message: "Введите имя и номер телефона и нажмите \"Отправить заявку\"."
+        message: "Р’РІРµРґРёС‚Рµ РёРјСЏ Рё РЅРѕРјРµСЂ С‚РµР»РµС„РѕРЅР° Рё РЅР°Р¶РјРёС‚Рµ \"РћС‚РїСЂР°РІРёС‚СЊ Р·Р°СЏРІРєСѓ\"."
       });
     }
     const duration = sanitizeDuration(body.duration, 60);
@@ -656,11 +669,11 @@ async function routeApi(req, res, url) {
       upsertUser(store, { ...actor, phone: safe.phone, role: actor.role });
       const masterChatId = findMasterChatId(store);
       const composed = [
-        `Сообщение клиентки мастеру (${type})`,
-        `Имя: ${safe.name}`,
-        `Телефон: ${safe.phone}`,
+        `РЎРѕРѕР±С‰РµРЅРёРµ РєР»РёРµРЅС‚РєРё РјР°СЃС‚РµСЂСѓ (${type})`,
+        `РРјСЏ: ${safe.name}`,
+        `РўРµР»РµС„РѕРЅ: ${safe.phone}`,
         `Telegram: ${buildClientDisplayName(actor)}`,
-        `Длительность: ${duration} мин`,
+        `Р”Р»РёС‚РµР»СЊРЅРѕСЃС‚СЊ: ${duration} РјРёРЅ`,
         "",
         text
       ].join("\n");
@@ -693,7 +706,7 @@ async function routeApi(req, res, url) {
       return sendJson(res, 422, {
         ok: false,
         error: "NAME_PHONE_REQUIRED",
-        message: "Введите имя и номер телефона и нажмите \"Отправить заявку\"."
+        message: "Р’РІРµРґРёС‚Рµ РёРјСЏ Рё РЅРѕРјРµСЂ С‚РµР»РµС„РѕРЅР° Рё РЅР°Р¶РјРёС‚Рµ \"РћС‚РїСЂР°РІРёС‚СЊ Р·Р°СЏРІРєСѓ\"."
       });
     }
     const date = ensureString(body.date);
@@ -712,7 +725,7 @@ async function routeApi(req, res, url) {
           ok: false,
           status: 409,
           error: "SLOT_ALREADY_REQUESTED",
-          message: "На это время уже отправлена заявка."
+          message: "РќР° СЌС‚Рѕ РІСЂРµРјСЏ СѓР¶Рµ РѕС‚РїСЂР°РІР»РµРЅР° Р·Р°СЏРІРєР°."
         };
       }
 
@@ -767,7 +780,7 @@ async function routeApi(req, res, url) {
           ok: false,
           status: 422,
           error: "CANCEL_WINDOW_CLOSED",
-          message: "Отменить запись можно не позднее, чем за 24 часа до начала. Напишите мастеру для уточнения."
+          message: "РћС‚РјРµРЅРёС‚СЊ Р·Р°РїРёСЃСЊ РјРѕР¶РЅРѕ РЅРµ РїРѕР·РґРЅРµРµ, С‡РµРј Р·Р° 24 С‡Р°СЃР° РґРѕ РЅР°С‡Р°Р»Р°. РќР°РїРёС€РёС‚Рµ РјР°СЃС‚РµСЂСѓ РґР»СЏ СѓС‚РѕС‡РЅРµРЅРёСЏ."
         };
       }
       booking.status = STATUS_CANCELLED;
@@ -914,7 +927,7 @@ async function routeApi(req, res, url) {
       if (booking.clientTelegramId) {
         await sendTelegramMessage(
           booking.clientTelegramId,
-          `Статус вашей записи обновлен: ${formatBookingCompact(booking)}\nНовый статус: ${booking.status}`
+          `РЎС‚Р°С‚СѓСЃ РІР°С€РµР№ Р·Р°РїРёСЃРё РѕР±РЅРѕРІР»РµРЅ: ${formatBookingCompact(booking)}\nРќРѕРІС‹Р№ СЃС‚Р°С‚СѓСЃ: ${booking.status}`
         );
       }
       return { ok: true, booking };
@@ -944,7 +957,7 @@ async function routeApi(req, res, url) {
           ok: false,
           status: 409,
           error: "SLOT_ALREADY_REQUESTED",
-          message: "На это время уже отправлена заявка."
+          message: "РќР° СЌС‚Рѕ РІСЂРµРјСЏ СѓР¶Рµ РѕС‚РїСЂР°РІР»РµРЅР° Р·Р°СЏРІРєР°."
         };
       }
       current.status = STATUS_REBOOKED_BY_MASTER;
@@ -970,7 +983,7 @@ async function routeApi(req, res, url) {
       if (newBooking.clientTelegramId) {
         await sendTelegramMessage(
           newBooking.clientTelegramId,
-          `Ваша запись перезаписана мастером.\nНовая запись: ${formatBookingCompact(newBooking)}\nСтатус: ${newBooking.status}`
+          `Р’Р°С€Р° Р·Р°РїРёСЃСЊ РїРµСЂРµР·Р°РїРёСЃР°РЅР° РјР°СЃС‚РµСЂРѕРј.\nРќРѕРІР°СЏ Р·Р°РїРёСЃСЊ: ${formatBookingCompact(newBooking)}\nРЎС‚Р°С‚СѓСЃ: ${newBooking.status}`
         );
       }
       return {
@@ -993,7 +1006,7 @@ async function routeApi(req, res, url) {
     const result = await withStoreMutate(async (store) => {
       const booking = store.bookings.find((item) => item.id === bookingId);
       if (!booking) return { ok: false, status: 404, error: "BOOKING_NOT_FOUND" };
-      await sendTelegramMessage(booking.clientTelegramId, `Сообщение от мастера:\n${text}`);
+      await sendTelegramMessage(booking.clientTelegramId, `РЎРѕРѕР±С‰РµРЅРёРµ РѕС‚ РјР°СЃС‚РµСЂР°:\n${text}`);
       return { ok: true };
     });
     return sendJson(res, result.status || 200, result);
@@ -1011,6 +1024,7 @@ async function routeApi(req, res, url) {
         await handleMasterReplyStart(store, callbackQuery);
       } else if (message?.chat?.id) {
         const chatId = String(message.chat.id);
+        const messageText = ensureString(message.text);
         const actor = {
           telegramId: chatId,
           username: ensureString(message.from?.username),
@@ -1019,9 +1033,13 @@ async function routeApi(req, res, url) {
           role: resolveRoleFromIdentity(chatId, message.from?.username)
         };
         upsertUser(store, actor);
+        if (messageText.toLowerCase().startsWith("/start")) {
+          await sendStartMessage(chatId);
+          return { ok: true };
+        }
         const pending = store.meta.pendingMasterReplies[chatId];
-        if (pending && ensureString(message.text)) {
-          await sendTelegramMessage(pending.clientTelegramId, `Сообщение от мастера:\n${message.text}`);
+        if (pending && messageText) {
+          await sendTelegramMessage(pending.clientTelegramId, `Сообщение от мастера:\n${messageText}`);
           delete store.meta.pendingMasterReplies[chatId];
           await sendTelegramMessage(chatId, "Ответ клиенту отправлен.");
         }
@@ -1125,3 +1143,4 @@ setInterval(() => {
     console.error("Periodic job error:", error);
   });
 }, 60 * 1000);
+
