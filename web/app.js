@@ -3,20 +3,20 @@ const clientRoot = document.querySelector("#clientRoot");
 const masterRoot = document.querySelector("#masterRoot");
 const toastEl = document.querySelector("#toast");
 
-const WEEK_DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const WEEK_DAYS = ["", "", "", "", "", "", ""];
 const MONTHS_RU = [
-  "Январь",
-  "Февраль",
-  "Март",
-  "Апрель",
-  "Май",
-  "Июнь",
-  "Июль",
-  "Август",
-  "Сентябрь",
-  "Октябрь",
-  "Ноябрь",
-  "Декабрь"
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  ""
 ];
 
 const state = {
@@ -112,8 +112,8 @@ function monthTitle(monthIso) {
 }
 
 function formatRole(role) {
-  if (role === "master" || role === "admin") return "Мастер / Администратор";
-  return "Клиент";
+  if (role === "master" || role === "admin") return " / ";
+  return "";
 }
 
 function panel(title, bodyHtml, expanded = false, id = "") {
@@ -123,7 +123,7 @@ function panel(title, bodyHtml, expanded = false, id = "") {
   el.innerHTML = `
     <button class="panel-head" type="button" ${id ? `data-panel-id="${id}"` : ""}>
       <span>${title}</span>
-      <span>${expanded ? "▲" : "▼"}</span>
+      <span>${expanded ? "" : ""}</span>
     </button>
     <div class="${bodyClass}">${bodyHtml}</div>
   `;
@@ -132,7 +132,7 @@ function panel(title, bodyHtml, expanded = false, id = "") {
   const body = el.querySelector(".panel-body");
   head.addEventListener("click", () => {
     body.classList.toggle("hidden");
-    arrow.textContent = body.classList.contains("hidden") ? "▼" : "▲";
+    arrow.textContent = body.classList.contains("hidden") ? "" : "";
     if (id === "new-booking") {
       state.client.newBookingExpanded = !body.classList.contains("hidden");
     }
@@ -260,8 +260,8 @@ function renderClientCalendar() {
     <div class="calendar-head">
       <strong>${monthTitle(state.client.month)}</strong>
       <div class="btn-row">
-        <button class="chip" type="button" data-cal-nav="-1">◀</button>
-        <button class="chip" type="button" data-cal-nav="1">▶</button>
+        <button class="chip" type="button" data-cal-nav="-1"></button>
+        <button class="chip" type="button" data-cal-nav="1"></button>
       </div>
     </div>
     <div class="calendar-weekdays">
@@ -319,7 +319,7 @@ async function submitNoSlotsMessage() {
   const name = ensureString(state.client.name);
   const phone = ensureString(state.client.phone);
   if (!name || !isValidPhone(phone)) {
-    state.client.formError = "Введите имя и номер телефона и нажмите \"Отправить заявку\".";
+    state.client.formError = "       \" \".";
     renderClient();
     scrollToElement("#identityBlock");
     return;
@@ -338,9 +338,9 @@ async function submitNoSlotsMessage() {
         message: state.client.noSlotsMessage
       })
     });
-    showToast("Сообщение отправлено мастеру");
+    showToast("  ");
   } catch (error) {
-    showToast(error?.message || "Ошибка отправки");
+    showToast(error?.message || " ");
   } finally {
     state.client.noSlotsSending = false;
     renderClient();
@@ -351,13 +351,13 @@ async function submitBooking() {
   const name = ensureString(state.client.name);
   const phone = ensureString(state.client.phone);
   if (!name || !isValidPhone(phone)) {
-    state.client.formError = "Введите имя и номер телефона и нажмите \"Отправить заявку\".";
+    state.client.formError = "       \" \".";
     renderClient();
     scrollToElement("#identityBlock");
     return;
   }
   if (!state.client.selectedDateIso || !state.client.selectedSlot) {
-    showToast("Выберите дату и время");
+    showToast("   ");
     return;
   }
 
@@ -381,22 +381,22 @@ async function submitBooking() {
     await loadAvailableDays();
     await loadHistory();
     renderClient();
-    showToast("Ваша заявка на рассмотрении у мастера.");
+    showToast("     .");
     return result;
   } catch (error) {
     if (error?.error === "SLOT_ALREADY_REQUESTED") {
-      showToast("На это время уже отправлена заявка.");
+      showToast("     .");
       await loadSlotsForSelectedDate();
       renderClient();
       return;
     }
     if (error?.error === "NAME_PHONE_REQUIRED") {
-      state.client.formError = error?.message || "Введите имя и телефон";
+      state.client.formError = error?.message || "   ";
       renderClient();
       scrollToElement("#identityBlock");
       return;
     }
-    showToast(error?.message || "Ошибка отправки заявки");
+    showToast(error?.message || "  ");
   }
 }
 
@@ -415,13 +415,13 @@ async function handleHistoryCancel(bookingId) {
   const name = ensureString(state.client.name);
   const phone = ensureString(state.client.phone);
   if (!name || !isValidPhone(phone)) {
-    state.client.formError = "Введите имя и номер телефона и нажмите \"Отправить заявку\".";
+    state.client.formError = "       \" \".";
     state.client.newBookingExpanded = true;
     renderClient();
     scrollToElement("#identityBlock");
     return;
   }
-  const cancelMessage = ensureString(state.client.cancelMessage || "Алина, я не смогу прийти в это время.");
+  const cancelMessage = ensureString(state.client.cancelMessage || ",       .");
   try {
     await api("/api/client/cancel-booking", {
       method: "POST",
@@ -438,7 +438,7 @@ async function handleHistoryCancel(bookingId) {
         name,
         phone,
         duration: booking.durationMinutes || getDurationSafe(),
-        message: `${cancelMessage}\nЗапись: ${booking.line}`
+        message: `${cancelMessage}\n: ${booking.line}`
       })
     });
     state.client.pendingCancelBookingId = "";
@@ -446,9 +446,9 @@ async function handleHistoryCancel(bookingId) {
     await loadAvailableDays();
     await loadHistory();
     renderClient();
-    showToast("Запись отменена");
+    showToast(" ");
   } catch (error) {
-    showToast(error?.message || "Не удалось отменить запись");
+    showToast(error?.message || "   ");
   }
 }
 
@@ -467,13 +467,13 @@ function startRebooking(booking) {
       scrollToElement("[data-panel-id='new-booking']");
     })
     .catch(() => {
-      showToast("Ошибка загрузки слотов");
+      showToast("  ");
     });
 }
 
 function renderHistoryList() {
   if (!state.history.length) {
-    return `<p class="helper">История пока пуста.</p>`;
+    return `<p class="helper">  .</p>`;
   }
   return state.history
     .map(
@@ -482,17 +482,17 @@ function renderHistoryList() {
           <div class="line-compact">${item.line}</div>
           <div class="status">${item.status}</div>
           <div class="btn-row">
-            <button type="button" class="btn ghost" data-history-action="cancel-open" data-booking-id="${item.id}">Отменить</button>
-            <button type="button" class="btn secondary" data-history-action="rebook" data-booking-id="${item.id}">Перезаписаться</button>
+            <button type="button" class="btn ghost" data-history-action="cancel-open" data-booking-id="${item.id}"></button>
+            <button type="button" class="btn secondary" data-history-action="rebook" data-booking-id="${item.id}"></button>
           </div>
           ${
             state.client.pendingCancelBookingId === item.id
               ? `
                 <div class="field">
-                  <label>Сообщение мастеру</label>
-                  <textarea data-cancel-message>${state.client.cancelMessage || "Алина, я не смогу прийти в это время."}</textarea>
+                  <label> </label>
+                  <textarea data-cancel-message>${state.client.cancelMessage || ",       ."}</textarea>
                 </div>
-                <button type="button" class="btn" data-history-action="cancel-send" data-booking-id="${item.id}">Отправить мастеру</button>
+                <button type="button" class="btn" data-history-action="cancel-send" data-booking-id="${item.id}"> </button>
               `
               : ""
           }
@@ -504,16 +504,16 @@ function renderHistoryList() {
 
 function renderClient() {
   const helperText = state.client.hasAnyDay
-    ? "Выберите день."
-    : "К сожалению, в этом месяце нет свободных окошек. Вы можете написать мастеру.";
-  const noSlotsDefaultText = `Алина, я не смогла записаться. Подберите мне, пожалуйста, ${getDurationSafe()} минут.`;
+    ? " ."
+    : " ,      .    .";
+  const noSlotsDefaultText = `,    .  , , ${getDurationSafe()} .`;
   if (!state.client.noSlotsMessage) {
     state.client.noSlotsMessage = noSlotsDefaultText;
   }
   const slotsHtml = state.client.selectedDateIso
     ? `
       <div id="timeSlotsBlock" class="field">
-        <label>Свободное время на ${isoDateToRu(state.client.selectedDateIso)}</label>
+        <label>   ${isoDateToRu(state.client.selectedDateIso)}</label>
         <div class="chips">
           ${
             state.client.slots.length
@@ -524,7 +524,7 @@ function renderClient() {
                     return `<button type="button" class="chip ${selected ? "selected" : ""}" data-slot="${slot.start}">${slot.start}-${slot.end}</button>`;
                   })
                   .join("")
-              : `<span class="helper">Нет свободных слотов для выбранной длительности.</span>`
+              : `<span class="helper">     .</span>`
           }
         </div>
       </div>
@@ -532,10 +532,10 @@ function renderClient() {
     : "";
 
   const panelNew = panel(
-    "Новая запись",
+    " ",
     `
       <div class="field">
-        <label>Длительность (минуты)</label>
+        <label> ()</label>
         <input id="durationInput" type="text" inputmode="numeric" value="${state.client.duration}" />
       </div>
       <div class="calendar" id="calendarRoot"></div>
@@ -544,20 +544,20 @@ function renderClient() {
         !state.client.hasAnyDay
           ? `
           <div class="field">
-            <label>Сообщение мастеру</label>
+            <label> </label>
             <textarea id="noSlotsMessage">${state.client.noSlotsMessage}</textarea>
           </div>
-          <button id="sendNoSlotsBtn" class="btn secondary" type="button" ${state.client.noSlotsSending ? "disabled" : ""}>Отправить мастеру</button>
+          <button id="sendNoSlotsBtn" class="btn secondary" type="button" ${state.client.noSlotsSending ? "disabled" : ""}> </button>
         `
           : ""
       }
       ${slotsHtml}
       <div id="identityBlock" class="field">
-        <label>Имя</label>
+        <label></label>
         <input id="clientNameInput" type="text" value="${state.client.name}" />
       </div>
       <div class="field">
-        <label>Телефон (+7... или 8...)</label>
+        <label> (+7...  8...)</label>
         <input id="clientPhoneInput" type="tel" value="${state.client.phone}" />
       </div>
       ${
@@ -565,13 +565,13 @@ function renderClient() {
           ? `<p class="helper error" id="identityError">${state.client.formError}</p>`
           : ""
       }
-      <button id="sendBookingBtn" class="btn" type="button">Отправить заявку</button>
+      <button id="sendBookingBtn" class="btn" type="button"> </button>
     `,
     state.client.newBookingExpanded,
     "new-booking"
   );
 
-  const panelHistory = panel("История", renderHistoryList(), state.client.historyExpanded, "history");
+  const panelHistory = panel("", renderHistoryList(), state.client.historyExpanded, "history");
   clientRoot.innerHTML = "";
   clientRoot.append(panelNew, panelHistory);
 
@@ -631,7 +631,7 @@ function renderClient() {
       if (action === "cancel-open") {
         state.client.historyExpanded = true;
         state.client.pendingCancelBookingId = bookingId;
-        state.client.cancelMessage = "Алина, я не смогу прийти в это время.";
+        state.client.cancelMessage = ",       .";
         renderClient();
         scrollToElement("[data-cancel-message]");
         return;
@@ -701,8 +701,8 @@ function renderMasterCalendar() {
     <div class="calendar-head">
       <strong>${monthTitle(state.master.month)}</strong>
       <div class="btn-row">
-        <button class="chip" type="button" data-master-cal-nav="-1">◀</button>
-        <button class="chip" type="button" data-master-cal-nav="1">▶</button>
+        <button class="chip" type="button" data-master-cal-nav="-1"></button>
+        <button class="chip" type="button" data-master-cal-nav="1"></button>
       </div>
     </div>
     <div class="calendar-weekdays">${WEEK_DAYS.map((d) => `<span>${d}</span>`).join("")}</div>
@@ -755,29 +755,29 @@ function renderMasterCalendar() {
 
 function renderMasterDayConfig() {
   if (!state.master.selectedDateIso || !state.master.dayConfig) {
-    return `<p class="helper">Выберите день в календаре, чтобы настроить график и посмотреть записи.</p>`;
+    return `<p class="helper">   ,      .</p>`;
   }
   const cfg = state.master.dayConfig;
   return `
     <div id="masterDayConfig" class="field">
-      <label>Дата</label>
+      <label></label>
       <input type="text" value="${isoDateToRu(state.master.selectedDateIso)}" readonly />
     </div>
     <div class="field">
-      <label><input id="dayOffCheckbox" type="checkbox" ${cfg.isDayOff ? "checked" : ""} /> Выходной</label>
+      <label><input id="dayOffCheckbox" type="checkbox" ${cfg.isDayOff ? "checked" : ""} /> </label>
     </div>
     <div class="btn-row">
       <div class="field">
-        <label>Начало</label>
+        <label></label>
         <input id="workStartInput" type="time" value="${cfg.workStart || "08:00"}" />
       </div>
       <div class="field">
-        <label>Конец</label>
+        <label></label>
         <input id="workEndInput" type="time" value="${cfg.workEnd || "20:00"}" />
       </div>
     </div>
     <div class="field">
-      <label>Исключенные периоды</label>
+      <label> </label>
       <div id="excludeList">
         ${
           state.master.excludesDraft.length
@@ -787,17 +787,17 @@ function renderMasterDayConfig() {
               <div class="btn-row" data-exclude-row="${idx}">
                 <input type="time" data-exclude-start="${idx}" value="${item.start}" />
                 <input type="time" data-exclude-end="${idx}" value="${item.end}" />
-                <button type="button" class="chip" data-exclude-remove="${idx}">✕</button>
+                <button type="button" class="chip" data-exclude-remove="${idx}"></button>
               </div>
             `
                 )
                 .join("")
-            : `<p class="helper">Периодов пока нет.</p>`
+            : `<p class="helper">  .</p>`
         }
       </div>
-      <button id="addExcludeBtn" type="button" class="btn ghost">Добавить период</button>
+      <button id="addExcludeBtn" type="button" class="btn ghost"> </button>
     </div>
-    <button id="saveDayConfigBtn" type="button" class="btn">Сохранить график дня</button>
+    <button id="saveDayConfigBtn" type="button" class="btn">  </button>
   `;
 }
 
@@ -806,19 +806,19 @@ function renderDayBookings() {
   if (!state.master.dayBookings.length) {
     return `
       <div class="field">
-        <label>Записи дня</label>
-        <p class="helper">Записей на выбранный день нет.</p>
+        <label> </label>
+        <p class="helper">    .</p>
       </div>
     `;
   }
   return `
     <div class="field">
-      <label>Записи дня</label>
+      <label> </label>
       <div class="chips">
         ${state.master.dayBookings
           .map(
             (item) =>
-              `<div class="chip">${item.timeRange} · ${item.durationMinutes} мин · ${item.clientName} · ${item.clientPhone}</div>`
+              `<div class="chip">${item.timeRange}  ${item.durationMinutes}   ${item.clientName}  ${item.clientPhone}</div>`
           )
           .join("")}
       </div>
@@ -831,16 +831,16 @@ function renderMasterFreeSlots() {
   return `
     <article class="panel">
       <button id="toggleMasterFreeSlots" class="panel-head" type="button">
-        <span>Свободное время</span>
-        <span>${visible ? "▲" : "▼"}</span>
+        <span> </span>
+        <span>${visible ? "" : ""}</span>
       </button>
       <div class="panel-body ${visible ? "" : "hidden"}">
         ${
           state.master.selectedDateIso
             ? state.master.freeSlots.length
               ? `<div class="chips">${state.master.freeSlots.map((slot) => `<span class="chip">${slot}</span>`).join("")}</div>`
-              : "<p class='helper'>Нет свободных периодов на выбранную дату.</p>"
-            : "<p class='helper'>Выберите день, чтобы увидеть свободные периоды.</p>"
+              : "<p class='helper'>     .</p>"
+            : "<p class='helper'> ,    .</p>"
         }
       </div>
     </article>
@@ -874,9 +874,9 @@ async function saveMasterDayConfig() {
     await loadMasterAvailableDays();
     await loadMasterDay(state.master.selectedDateIso);
     renderMaster();
-    showToast("График дня сохранен");
+    showToast("  ");
   } catch {
-    showToast("Ошибка сохранения графика");
+    showToast("  ");
   }
 }
 
@@ -890,30 +890,30 @@ async function handleMasterRequestAction(action, bookingId) {
         body: JSON.stringify({
           user: state.actor,
           bookingId,
-          status: "подтверждена"
+          status: ""
         })
       });
-      showToast("Заявка подтверждена");
+      showToast(" ");
     } else if (action === "reject") {
       await api("/api/master/update-booking-status", {
         method: "POST",
         body: JSON.stringify({
           user: state.actor,
           bookingId,
-          status: "отклонена"
+          status: ""
         })
       });
-      showToast("Заявка отклонена");
+      showToast(" ");
     } else if (action === "cancel") {
       await api("/api/master/update-booking-status", {
         method: "POST",
         body: JSON.stringify({
           user: state.actor,
           bookingId,
-          status: "отменена"
+          status: ""
         })
       });
-      showToast("Запись отменена мастером");
+      showToast("  ");
     } else if (action === "reply-send") {
       const text = ensureString(
         document.querySelector(`[data-reply-input='${bookingId}']`)?.value ||
@@ -921,7 +921,7 @@ async function handleMasterRequestAction(action, bookingId) {
           ""
       );
       if (!text) {
-        showToast("Введите текст ответа");
+        showToast("  ");
         return;
       }
       await api("/api/master/reply-client", {
@@ -933,7 +933,7 @@ async function handleMasterRequestAction(action, bookingId) {
         })
       });
       state.master.replyDraftByBookingId[bookingId] = "";
-      showToast("Ответ отправлен клиенту");
+      showToast("  ");
     } else if (action === "reschedule-send") {
       const draft = state.master.rescheduleDraftByBookingId[bookingId] || {};
       const newDate = ensureString(
@@ -946,7 +946,7 @@ async function handleMasterRequestAction(action, bookingId) {
         document.querySelector(`[data-reschedule-duration='${bookingId}']`)?.value || draft.newDuration || booking.durationMinutes
       );
       if (!newDate || !newStart) {
-        showToast("Укажите дату и время для перезаписи");
+        showToast("     ");
         return;
       }
       await api("/api/master/reschedule-booking", {
@@ -960,7 +960,7 @@ async function handleMasterRequestAction(action, bookingId) {
         })
       });
       state.master.rescheduleDraftByBookingId[bookingId] = {};
-      showToast("Запись перезаписана мастером");
+      showToast("  ");
     }
     await loadMasterRequests();
     if (state.master.selectedDateIso) {
@@ -969,18 +969,18 @@ async function handleMasterRequestAction(action, bookingId) {
     }
     renderMaster();
   } catch (error) {
-    showToast(error?.message || "Операция не выполнена");
+    showToast(error?.message || "  ");
   }
 }
 
 function renderMasterRequests() {
   const filters = [
-    { key: "all", label: "Все" },
-    { key: "на согласовании", label: "На согласовании" },
-    { key: "подтверждена", label: "Подтвержденные" },
-    { key: "завершена", label: "Завершенные" },
-    { key: "отменена", label: "Отмененные" },
-    { key: "перезаписано мастером", label: "Перезаписано" }
+    { key: "all", label: "" },
+    { key: " ", label: " " },
+    { key: "", label: "" },
+    { key: "", label: "" },
+    { key: "", label: "" },
+    { key: " ", label: "" }
   ];
 
   const filtersHtml = `
@@ -1004,26 +1004,26 @@ function renderMasterRequests() {
           );
           return `
           <div class="history-item">
-            <div class="line-compact">${item.date} · ${item.timeRange} · ${item.durationMinutes} мин</div>
-            <div class="status">${item.clientName} · ${item.clientPhone}</div>
+            <div class="line-compact">${item.date}  ${item.timeRange}  ${item.durationMinutes} </div>
+            <div class="status">${item.clientName}  ${item.clientPhone}</div>
             <div class="status">${item.status}</div>
             <div class="btn-row">
-              <button type="button" class="btn ghost" data-master-action="confirm" data-booking-id="${item.id}">Подтвердить</button>
-              <button type="button" class="btn ghost" data-master-action="reject" data-booking-id="${item.id}">Отклонить</button>
+              <button type="button" class="btn ghost" data-master-action="confirm" data-booking-id="${item.id}"></button>
+              <button type="button" class="btn ghost" data-master-action="reject" data-booking-id="${item.id}"></button>
             </div>
             <div class="btn-row">
-              <button type="button" class="btn ghost" data-master-action="cancel" data-booking-id="${item.id}">Отменить</button>
-              <button type="button" class="btn secondary" data-master-action="reschedule-open" data-booking-id="${item.id}">Перезаписать</button>
-              <button type="button" class="btn secondary" data-master-action="reply-open" data-booking-id="${item.id}">Ответить клиенту</button>
+              <button type="button" class="btn ghost" data-master-action="cancel" data-booking-id="${item.id}"></button>
+              <button type="button" class="btn secondary" data-master-action="reschedule-open" data-booking-id="${item.id}"></button>
+              <button type="button" class="btn secondary" data-master-action="reply-open" data-booking-id="${item.id}"> </button>
             </div>
             ${
               replyOpen
                 ? `
                 <div class="field">
-                  <label>Ответ клиенту</label>
+                  <label> </label>
                   <textarea data-reply-input="${item.id}">${state.master.replyDraftByBookingId[item.id] || ""}</textarea>
                 </div>
-                <button type="button" class="btn" data-master-action="reply-send" data-booking-id="${item.id}">Отправить клиенту</button>
+                <button type="button" class="btn" data-master-action="reply-send" data-booking-id="${item.id}"> </button>
               `
                 : ""
             }
@@ -1031,20 +1031,20 @@ function renderMasterRequests() {
               rescheduleOpen
                 ? `
                 <div class="field">
-                  <label>Новая дата</label>
+                  <label> </label>
                   <input type="date" data-reschedule-date="${item.id}" value="${state.master.rescheduleDraftByBookingId[item.id]?.newDate || item.dateIso}" />
                 </div>
                 <div class="btn-row">
                   <div class="field">
-                    <label>Новое время</label>
+                    <label> </label>
                     <input type="time" data-reschedule-start="${item.id}" value="${state.master.rescheduleDraftByBookingId[item.id]?.newStart || item.timeRange.split("-")[0]}" />
                   </div>
                   <div class="field">
-                    <label>Минуты</label>
+                    <label></label>
                     <input type="number" data-reschedule-duration="${item.id}" value="${state.master.rescheduleDraftByBookingId[item.id]?.newDuration || item.durationMinutes}" />
                   </div>
                 </div>
-                <button type="button" class="btn" data-master-action="reschedule-send" data-booking-id="${item.id}">Подтвердить перезапись</button>
+                <button type="button" class="btn" data-master-action="reschedule-send" data-booking-id="${item.id}"> </button>
               `
                 : ""
             }
@@ -1052,7 +1052,7 @@ function renderMasterRequests() {
         `;
         })
         .join("")
-    : `<p class="helper">Заявок по выбранному фильтру нет.</p>`;
+    : `<p class="helper">    .</p>`;
 
   return `${filtersHtml}<div class="field">${listHtml}</div>`;
 }
@@ -1065,8 +1065,8 @@ function renderMaster() {
     ${renderMasterFreeSlots()}
   `;
   const requestsBody = renderMasterRequests();
-  const schedulePanel = panel("Рабочий график", scheduleBody, false, "master-schedule");
-  const requestsPanel = panel("Заявки", requestsBody, false, "master-requests");
+  const schedulePanel = panel(" ", scheduleBody, false, "master-schedule");
+  const requestsPanel = panel("", requestsBody, false, "master-requests");
   masterRoot.innerHTML = "";
   masterRoot.append(schedulePanel, requestsPanel);
   renderMasterCalendar();
@@ -1202,5 +1202,5 @@ async function bootstrap() {
 bootstrap().catch((error) => {
   // eslint-disable-next-line no-console
   console.error(error);
-  showToast("Ошибка загрузки");
+  showToast(" ");
 });
