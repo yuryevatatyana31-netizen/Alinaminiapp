@@ -644,7 +644,7 @@ function buildBotCalendarKeyboard(store, month, duration) {
     const day = Number(date.slice(-2));
     const isAvailable = availableDates.has(date);
     currentRow.push({
-      text: isAvailable ? `${t("8J+fog==")} ${day}` : t("4oCm"),
+      text: isAvailable ? String(day) : "·",
       callback_data: isAvailable ? `bot_day:${date}:${duration}` : "noop"
     });
     if (currentRow.length === 7) {
@@ -673,7 +673,7 @@ async function sendBotBookingCalendar(store, chatId, month, duration) {
   }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
   await sendTelegramMessage(
     chatId,
-    `${t("0JLRi9Cx0LXRgNC40YLQtSDQtNCw0YLRgw==")} (${title}):\n${t("8J+fog==")} ${t("4oCUINC10YHRgtGMINC+0LrQvdCwINC00LvRjyDQstGL0LHRgNCw0L3QvdC+0Lkg0LTQu9C40YLQtdC70YzQvdC+0YHRgtC4")}\n${t("4pqqIOKAlCDQvdC10YIg0LTQvtGB0YLRg9C/0L3Ri9GFINC+0LrQvtC9")}`,
+    `${t("0JLRi9Cx0LXRgNC40YLQtSDQtNCw0YLRgw==")} (${title}):\n${t("0J/QvtC60LDQt9Cw0L3RiyDRgtC+0LvRjNC60L4g0LTQvtGB0YLRg9C/0L3Ri9C1INC00LDRgtGLLg==")}`,
     {
     reply_markup: {
       inline_keyboard: buildBotCalendarKeyboard(store, month, duration)
