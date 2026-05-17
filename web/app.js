@@ -179,6 +179,17 @@ function getFallbackUserFromQuery() {
   };
 }
 
+function initTelegramWebAppShell() {
+  try {
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+    }
+  } catch {
+    // Ignore shell init errors and continue in browser mode.
+  }
+}
+
 function getOrCreateWebDebugId() {
   const key = "electro_web_debug_id";
   let value = localStorage.getItem(key) || "";
@@ -1173,6 +1184,7 @@ async function initClientState() {
 }
 
 async function bootstrap() {
+  initTelegramWebAppShell();
   const tgUser = getTelegramUser();
   const fallbackUser = getFallbackUserFromQuery();
   const isTelegramContext = Boolean(tgUser?.telegramId);

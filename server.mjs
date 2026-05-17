@@ -458,15 +458,11 @@ async function answerCallbackQuery(callbackQueryId, text = "") {
 async function sendStartMessage(chatId) {
   const text = [
     "Здравствуйте! Я бот-помощник Алины для записи на процедуры.",
-    "Нажмите кнопку «Записаться», чтобы открыть мини-приложение.",
     "Если кнопка «Записаться» не сработала, нажмите «Открыть в браузере»."
   ].join("\n");
   return sendTelegramMessage(chatId, text, {
     reply_markup: {
-      inline_keyboard: [
-        [{ text: "Открыть запись", web_app: { url: MINIAPP_PUBLIC_URL } }],
-        [{ text: "Открыть в браузере", url: MINIAPP_PUBLIC_URL }]
-      ]
+      inline_keyboard: [[{ text: "Открыть в браузере", url: MINIAPP_PUBLIC_URL }]]
     }
   });
 }
