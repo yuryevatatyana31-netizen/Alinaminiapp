@@ -77,7 +77,7 @@ def ensure_git_is_ready() -> str:
     commit = run_local(["git", "rev-parse", "HEAD"])
 
     if os.environ.get("DEPLOY_COMMIT_TAG", "1") != "0":
-        stamp = dt.datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
         tag = f"deploy/prod-{stamp}-{commit[:7]}"
         run_local(["git", "tag", tag, commit])
         run_local(["git", "push", "origin", tag])
