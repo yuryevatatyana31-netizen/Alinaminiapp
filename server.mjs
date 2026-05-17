@@ -68,7 +68,8 @@ function createDefaultStore() {
       defaultWorkStart: "08:00",
       defaultWorkEnd: "20:00",
       defaultDurationMinutes: 60,
-      pendingMasterReplies: {}
+      pendingMasterReplies: {},
+      pendingClientBookings: {}
     },
     users: [],
     dayConfigs: {},
@@ -86,6 +87,7 @@ async function loadStore() {
   const raw = await readFile(STORE_PATH, "utf-8");
   const data = JSON.parse(raw);
   if (!data.meta.pendingMasterReplies) data.meta.pendingMasterReplies = {};
+  if (!data.meta.pendingClientBookings) data.meta.pendingClientBookings = {};
   return data;
 }
 
@@ -455,6 +457,10 @@ async function answerCallbackQuery(callbackQueryId, text = "") {
   });
 }
 
+function t(base64) {
+  return Buffer.from(base64, "base64").toString("utf8");
+}
+
 async function sendStartMessage(chatId) {
   const text = [
     "Здравствуйте! Я бот-помощник Алины для записи на процедуры.",
@@ -599,6 +605,227 @@ async function handleMasterApproveBooking(store, callbackQuery) {
   }
 }
 
+function getBotBookingState(store, chatId) {
+  if (!store.meta.pendingClientBookings) store.meta.pendingClientBookings = {};
+  return store.meta.pendingClientBookings[chatId] || null;
+}
+
+function setBotBookingState(store, chatId, state) {
+  if (!store.meta.pendingClientBookings) store.meta.pendingClientBookings = {};
+  store.meta.pendingClientBookings[chatId] = {
+    ...state,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function clearBotBookingState(store, chatId) {
+  if (!store.meta.pendingClientBookings) store.meta.pendingClientBookings = {};
+  delete store.meta.pendingClientBookings[chatId];
+}
+
+function buildBotCalendarKeyboard(store, month, duration) {
+  const availableDates = new Set(getAvailableDaysForMonth(store, month, duration));
+  const days = listDaysInMonth(month);
+  const rows = [
+    [
+      { text: t("0J/QvQ=="), callback_data: "noop" },
+      { text: t("0JLRgg=="), callback_data: "noop" },
+      { text: t("0KHRgA=="), callback_data: "noop" },
+      { text: t("0KfRgg=="), callback_data: "noop" },
+      { text: t("0J/Rgg=="), callback_data: "noop" },
+      { text: t("0KHQsQ=="), callback_data: "noop" },
+      { text: t("0JLRgQ=="), callback_data: "noop" }
+    ]
+  ];
+  let currentRow = [];
+  const [year, monthNumber] = month.split("-").map(Number);
+  const firstWeekDay = (new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay() + 6) % 7;
+  for (let i = 0; i < firstWeekDay; i += 1) {
+    currentRow.push({ text: " ", callback_data: "noop" });
+  }
+  for (const date of days) {
+    const day = Number(date.slice(-2));
+    const isAvailable = availableDates.has(date);
+    currentRow.push({
+      text: isAvailable ? `${t("8J+fog==")} ${day}` : t("4oCm"),
+      callback_data: isAvailable ? `bot_day:${date}:${duration}` : "noop"
+    });
+    if (currentRow.length === 7) {
+      rows.push(currentRow);
+      currentRow = [];
+    }
+  }
+  if (currentRow.length) {
+    while (currentRow.length < 7) currentRow.push({ text: " ", callback_data: "noop" });
+    rows.push(currentRow);
+  }
+  rows.push([
+    { text: t("4peA77iP"), callback_data: `bot_month:${addMonths(month, -1)}:${duration}` },
+    { text: t("0J7RgtC80LXQvdCw"), callback_data: "bot_cancel" },
+    { text: t("4pa277iP"), callback_data: `bot_month:${addMonths(month, 1)}:${duration}` }
+  ]);
+  return rows;
+}
+
+async function sendBotBookingCalendar(store, chatId, month, duration) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const title = new Intl.DateTimeFormat("ru-RU", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Moscow"
+  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
+  await sendTelegramMessage(
+    chatId,
+    `${t("0JLRi9Cx0LXRgNC40YLQtSDQtNCw0YLRgw==")} (${title}):\n${t("8J+fog==")} ${t("4oCUINC10YHRgtGMINC+0LrQvdCwINC00LvRjyDQstGL0LHRgNCw0L3QvdC+0Lkg0LTQu9C40YLQtdC70YzQvdC+0YHRgtC4")}\n${t("4pqqIOKAlCDQvdC10YIg0LTQvtGB0YLRg9C/0L3Ri9GFINC+0LrQvtC9")}`,
+    {
+    reply_markup: {
+      inline_keyboard: buildBotCalendarKeyboard(store, month, duration)
+    }
+  });
+}
+
+async function startBotBooking(store, chatId) {
+  setBotBookingState(store, chatId, { step: "duration" });
+  await sendTelegramMessage(chatId, t("0JLQstC10LTQuNGC0LUg0LTQu9C40YLQtdC70YzQvdC+0YHRgtGMINC/0YDQvtGG0LXQtNGD0YDRiyDQsiDQvNC40L3Rg9GC0LDRhTo="), {
+    reply_markup: {
+      remove_keyboard: true
+    }
+  });
+}
+
+async function handleBotBookingCallback(store, callbackQuery) {
+  const chatId = String(callbackQuery.from.id);
+  const data = ensureString(callbackQuery.data);
+  if (data === "noop") {
+    await answerCallbackQuery(callbackQuery.id);
+    return;
+  }
+  if (data === "bot_cancel") {
+    clearBotBookingState(store, chatId);
+    await answerCallbackQuery(callbackQuery.id, t("0JfQsNC/0LjRgdGMINC+0YLQvNC10L3QtdC90LA="));
+    await sendTelegramMessage(chatId, t("0JfQsNC/0LjRgdGMINGH0LXRgNC10Lcg0LHQvtGCINC+0YLQvNC10L3QtdC90LAu"));
+    return;
+  }
+  if (data.startsWith("bot_month:")) {
+    const [, month, durationRaw] = data.split(":");
+    const duration = sanitizeDuration(durationRaw, 60);
+    setBotBookingState(store, chatId, { step: "date", duration, month });
+    await answerCallbackQuery(callbackQuery.id);
+    await sendBotBookingCalendar(store, chatId, month, duration);
+    return;
+  }
+  if (data.startsWith("bot_day:")) {
+    const [, date, durationRaw] = data.split(":");
+    const duration = sanitizeDuration(durationRaw, 60);
+    const slots = getSlotsForDay(store, date, duration);
+    if (!slots.length) {
+      await answerCallbackQuery(callbackQuery.id, t("0J3QsCDRjdGC0L7RgiDQtNC10L3RjCDRg9C20LUg0L3QtdGCINGB0LLQvtCx0L7QtNC90YvRhSDQvtC60L7QvQ=="));
+      return;
+    }
+    setBotBookingState(store, chatId, { step: "slot", duration, date });
+    await answerCallbackQuery(callbackQuery.id);
+    const rows = slots.slice(0, 80).map((slot) => [
+      {
+        text: `${formatDateRu(date)} ${slot.start}`,
+        callback_data: `bot_slot:${date}:${slot.start.replace(":", "")}:${duration}`
+      }
+    ]);
+    rows.push([{ text: t("0J7RgtC80LXQvdCw"), callback_data: "bot_cancel" }]);
+    await sendTelegramMessage(chatId, t("0JLRi9Cx0LXRgNC40YLQtSDRgdCy0L7QsdC+0LTQvdGL0Lkg0YHQu9C+0YI6"), {
+      reply_markup: {
+        inline_keyboard: rows
+      }
+    });
+    return;
+  }
+  if (data.startsWith("bot_slot:")) {
+    const [, date, startRaw, durationRaw] = data.split(":");
+    const start = `${startRaw.slice(0, 2)}:${startRaw.slice(2, 4)}`;
+    const duration = sanitizeDuration(durationRaw, 60);
+    const slot = getSlotsForDay(store, date, duration).find((item) => item.start === start);
+    if (!slot) {
+      await answerCallbackQuery(callbackQuery.id, t("0J3QsCDRjdGC0L4g0LLRgNC10LzRjyDRg9C20LUg0L7RgtC/0YDQsNCy0LvQtdC90LAg0LfQsNGP0LLQutCw"));
+      return;
+    }
+    setBotBookingState(store, chatId, { step: "contact", duration, date, start, end: slot.end });
+    await answerCallbackQuery(callbackQuery.id);
+    await sendTelegramMessage(chatId, `${t("0JLRiyDQstGL0LHRgNCw0LvQuA==")} ${formatDateRu(date)} ${slot.start}-${slot.end}.\n${t("0JLQstC10LTQuNGC0LUg0LjQvNGPINC4INGC0LXQu9C10YTQvtC9INC+0LTQvdC40Lwg0YHQvtC+0LHRidC10L3QuNC10Lw6")}`);
+  }
+}
+
+function parseNamePhoneFromMessage(messageText, actor) {
+  const phoneMatch = ensureString(messageText).match(/(?:\+7|8|7)[\d\s\-()]{9,}/);
+  const phone = normalizePhone(phoneMatch?.[0] || "");
+  const name = ensureString(messageText.replace(phoneMatch?.[0] || "", "").replace(/[,;]+/g, " "));
+  return {
+    name: name || buildClientDisplayName(actor, ""),
+    phone
+  };
+}
+
+async function handleBotBookingMessage(store, chatId, messageText, actor) {
+  const lower = messageText.toLowerCase();
+  if (lower === t("0LfQsNC/0LjRgdCw0YLRjNGB0Y8=") || lower === "/book") {
+    await startBotBooking(store, chatId);
+    return true;
+  }
+  if (lower === t("0L7RgtC80LXQvdCw") || lower === "/cancel") {
+    clearBotBookingState(store, chatId);
+    await sendTelegramMessage(chatId, t("0JfQsNC/0LjRgdGMINGH0LXRgNC10Lcg0LHQvtGCINC+0YLQvNC10L3QtdC90LAu"));
+    return true;
+  }
+  const pending = getBotBookingState(store, chatId);
+  if (!pending) return false;
+  if (pending.step === "duration") {
+    const duration = sanitizeDuration(messageText, 0);
+    if (!duration) {
+      await sendTelegramMessage(chatId, t("0JLQstC10LTQuNGC0LUg0LTQu9C40YLQtdC70YzQvdC+0YHRgtGMINGH0LjRgdC70L7QvCwg0L3QsNC/0YDQuNC80LXRgCA2MC4="));
+      return true;
+    }
+    const month = getMoscowTodayIsoDate().slice(0, 7);
+    setBotBookingState(store, chatId, { step: "date", duration, month });
+    await sendBotBookingCalendar(store, chatId, month, duration);
+    return true;
+  }
+  if (pending.step === "contact") {
+    const contact = parseNamePhoneFromMessage(messageText, actor);
+    const safe = checkRequiredNamePhone(contact.name, contact.phone);
+    if (!safe) {
+      await sendTelegramMessage(chatId, t("0JLQstC10LTQuNGC0LUg0LjQvNGPINC4INGC0LXQu9C10YTQvtC9INC+0LTQvdC40Lwg0YHQvtC+0LHRidC10L3QuNC10LwuINCd0LDQv9GA0LjQvNC10YA6INCi0LDRgtGM0Y/QvdCwICs3OTAxMjM0NTY3OA=="));
+      return true;
+    }
+    const slots = getSlotsForDay(store, pending.date, pending.duration);
+    const slot = slots.find((item) => item.start === pending.start);
+    if (!slot) {
+      clearBotBookingState(store, chatId);
+      await sendTelegramMessage(chatId, t("0J3QsCDRjdGC0L4g0LLRgNC10LzRjyDRg9C20LUg0L7RgtC/0YDQsNCy0LvQtdC90LAg0LfQsNGP0LLQutCwLiDQndCw0LbQvNC40YLQtSDCq9CX0LDQv9C40YHQsNGC0YzRgdGPwrssINGH0YLQvtCx0Ysg0LLRi9Cx0YDQsNGC0Ywg0LTRgNGD0LPQvtC1INCy0YDQtdC80Y8u"));
+      return true;
+    }
+    const booking = {
+      id: generateId("booking"),
+      clientTelegramId: chatId,
+      clientUsername: actor.username,
+      clientName: safe.name,
+      clientPhone: safe.phone,
+      date: pending.date,
+      start: slot.start,
+      end: slot.end,
+      durationMinutes: pending.duration,
+      status: STATUS_PENDING,
+      reminders: { h24SentAt: null, h2SentAt: null },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    store.bookings.push(booking);
+    upsertUser(store, { ...actor, phone: safe.phone, role: actor.role });
+    clearBotBookingState(store, chatId);
+    await notifyMasterAboutBooking(store, booking, actor);
+    await sendTelegramMessage(chatId, t("0JLQsNGI0LAg0LfQsNGP0LLQutCwINC90LAg0YDQsNGB0YHQvNC+0YLRgNC10L3QuNC4INGDINC80LDRgdGC0LXRgNCwLg=="));
+    return true;
+  }
+  return true;
+}
+
 function serializeBookingForClient(booking) {
   return {
     id: booking.id,
@@ -617,6 +844,12 @@ function parseMonthOrCurrent(monthParam) {
   if (/^\d{4}-\d{2}$/.test(month)) return month;
   const today = getMoscowTodayIsoDate();
   return today.slice(0, 7);
+}
+
+function addMonths(month, delta) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
 }
 
 function validateIsoDate(date) {
@@ -1073,6 +1306,8 @@ async function routeApi(req, res, url) {
         await handleMasterApproveBooking(store, callbackQuery);
       } else if (callbackQuery?.data?.startsWith("reply_client:")) {
         await handleMasterReplyStart(store, callbackQuery);
+      } else if (callbackQuery?.data?.startsWith("bot_") || callbackQuery?.data === "noop") {
+        await handleBotBookingCallback(store, callbackQuery);
       } else if (message?.chat?.id) {
         const chatId = String(message.chat.id);
         const messageText = ensureString(message.text);
@@ -1098,6 +1333,9 @@ async function routeApi(req, res, url) {
           await sendTelegramMessage(pending.clientTelegramId, `Сообщение от мастера:\n${messageText}`);
           delete store.meta.pendingMasterReplies[chatId];
           await sendTelegramMessage(chatId, "Ответ клиенту отправлен.");
+        }
+        if (messageText) {
+          await handleBotBookingMessage(store, chatId, messageText, actor);
         }
       }
       return { ok: true };

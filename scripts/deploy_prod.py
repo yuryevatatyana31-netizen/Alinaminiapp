@@ -5,7 +5,7 @@ Deploy mini app to production with mandatory GitHub push and deploy tag.
 Usage (PowerShell example):
   $env:DEPLOY_HOST="103.85.113.236"
   $env:DEPLOY_USER="root"
-  $env:DEPLOY_PASSWORD="***"
+  $env:DEPLOY_KEY_PATH="$env:USERPROFILE\\.ssh\\codex_server_key"
   $env:DEPLOY_COMMIT_TAG="1"   # optional, default on
   python scripts/deploy_prod.py
 """
@@ -91,14 +91,26 @@ class Remote:
         self.host = os.environ.get("DEPLOY_HOST", "").strip()
         self.user = os.environ.get("DEPLOY_USER", "root").strip()
         self.password = os.environ.get("DEPLOY_PASSWORD", "").strip()
+        self.key_path = os.environ.get("DEPLOY_KEY_PATH", "").strip()
         self.root = os.environ.get("DEPLOY_REMOTE_ROOT", "/opt/beauty-booking").strip()
         self.project = os.environ.get("DEPLOY_COMPOSE_PROJECT", "beauty_prod").strip()
-        if not self.host or not self.password:
-            raise RuntimeError("DEPLOY_HOST and DEPLOY_PASSWORD are required.")
+        if not self.host:
+            raise RuntimeError("DEPLOY_HOST is required.")
+        if not self.password and not self.key_path:
+            raise RuntimeError("Either DEPLOY_PASSWORD or DEPLOY_KEY_PATH is required.")
 
         self.ssh = paramiko.SSHClient()
         self.ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.ssh.connect(hostname=self.host, username=self.user, password=self.password, timeout=20)
+        connect_kwargs = {
+            "hostname": self.host,
+            "username": self.user,
+            "timeout": 20,
+        }
+        if self.key_path:
+            connect_kwargs["key_filename"] = self.key_path
+        else:
+            connect_kwargs["password"] = self.password
+        self.ssh.connect(**connect_kwargs)
         self.sftp = self.ssh.open_sftp()
 
     def close(self) -> None:
