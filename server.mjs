@@ -18,6 +18,7 @@ const MASTER_TELEGRAM_ID = process.env.MASTER_TELEGRAM_ID || "";
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || "";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const MINIAPP_PUBLIC_URL = process.env.MINIAPP_PUBLIC_URL || "https://electrologinyabot.fd-yureva.ru/miniapp/";
+const AUTO_OPEN_MONTHS = new Set(["2026-05", "2026-06"]);
 
 const STATUS_PENDING = "на согласовании";
 const STATUS_CONFIRMED = "подтверждена";
@@ -269,17 +270,17 @@ function generateId(prefix) {
 }
 
 function getDayConfig(store, isoDate) {
+  const custom = store.dayConfigs[isoDate];
   const defaultConfig = {
-    isDayOff: false,
+    isDayOff: !AUTO_OPEN_MONTHS.has(isoDate.slice(0, 7)),
     workStart: store.meta.defaultWorkStart || "08:00",
     workEnd: store.meta.defaultWorkEnd || "20:00",
     excludes: []
   };
-  const custom = store.dayConfigs[isoDate] || {};
   return {
     ...defaultConfig,
-    ...custom,
-    excludes: Array.isArray(custom.excludes) ? custom.excludes : []
+    ...(custom || {}),
+    excludes: Array.isArray(custom?.excludes) ? custom.excludes : []
   };
 }
 
@@ -462,11 +463,7 @@ function t(base64) {
 }
 
 async function sendStartMessage(chatId) {
-  const text = [
-    "Здравствуйте! Я бот-помощник Алины для записи на процедуры.",
-    "Нажмите кнопку «Записаться», чтобы открыть мини-приложение.",
-    "Если кнопка «Записаться» не сработала, нажмите «Открыть в браузере»."
-  ].join("\n");
+  const text = t("8J+RiyDQl9C00YDQsNCy0YHRgtCy0YPQudGC0LUhINCvINCx0L7Rgi3Qv9C+0LzQvtGJ0L3QuNC6INCQ0LvQuNC90Ysg0LTQu9GPINC30LDQv9C40YHQuCDQvdCwINC/0YDQvtGG0LXQtNGD0YDRiy4KCuKcje+4jyDQndCw0LbQvNC40YLQtSDQutC90L7Qv9C60YMgwqvQl9Cw0L/QuNGB0LDRgtGM0YHRj8K7LCDRh9GC0L7QsdGLINC+0YLQutGA0YvRgtGMINC80LjQvdC4LdC/0YDQuNC70L7QttC10L3QuNC1LgoK8J+Ul9CV0YHQu9C4INC60L3QvtC/0LrQsCDCq9CX0LDQv9C40YHQsNGC0YzRgdGPwrsg0L3QtSDRgdGA0LDQsdC+0YLQsNC70LAsINC90LDQttC80LjRgtC1IMKr0J7RgtC60YDRi9GC0Ywg0LIg0LHRgNCw0YPQt9C10YDQtcK7Lg==");
   return sendTelegramMessage(chatId, text, {
     reply_markup: {
       inline_keyboard: [[{ text: "Открыть в браузере", url: MINIAPP_PUBLIC_URL }]]
@@ -842,6 +839,10 @@ function parseMonthOrCurrent(monthParam) {
   return today.slice(0, 7);
 }
 
+function validateMonthString(month) {
+  return /^\d{4}-\d{2}$/.test(ensureString(month));
+}
+
 function addMonths(month, delta) {
   const [year, monthNumber] = month.split("-").map(Number);
   const date = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
@@ -1097,6 +1098,34 @@ async function routeApi(req, res, url) {
     });
 
     return sendJson(res, 200, result);
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/master/month-config") {
+    const body = await parseBody(req);
+    const actor = getActorFromRequest(req, url, body);
+    if (!assertMasterRole(actor)) return sendJson(res, 403, { ok: false, error: "FORBIDDEN" });
+    const month = ensureString(body.month);
+    if (!validateMonthString(month)) return sendJson(res, 400, { ok: false, error: "INVALID_MONTH" });
+
+    const result = await withStoreMutate(async (store) => {
+      const workStart = ensureString(body.workStart || store.meta.defaultWorkStart || "08:00");
+      const workEnd = ensureString(body.workEnd || store.meta.defaultWorkEnd || "20:00");
+      if (!validateTimeString(workStart) || !validateTimeString(workEnd)) {
+        return { ok: false, status: 400, error: "INVALID_TIME" };
+      }
+      const dates = listDaysInMonth(month);
+      for (const date of dates) {
+        store.dayConfigs[date] = {
+          workStart,
+          workEnd,
+          isDayOff: false,
+          excludes: []
+        };
+      }
+      return { ok: true, month, updatedDays: dates.length };
+    });
+
+    return sendJson(res, result.status || 200, result);
   }
 
   if (req.method === "GET" && url.pathname === "/api/master/day-bookings") {

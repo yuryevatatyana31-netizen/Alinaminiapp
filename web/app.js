@@ -782,6 +782,15 @@ function renderMasterCalendar() {
   });
 }
 
+function renderMasterMonthTools() {
+  return `
+    <div class="field">
+      <label>Месяц: ${monthTitle(state.master.month)}</label>
+      <button id="fillMasterMonthBtn" type="button" class="btn">Заполнить весь месяц 08:00-20:00</button>
+    </div>
+  `;
+}
+
 function renderMasterDayConfig() {
   if (!state.master.selectedDateIso || !state.master.dayConfig) {
     return `<p class="helper">Выберите день в календаре, чтобы настроить график и посмотреть записи.</p>`;
@@ -874,6 +883,28 @@ function renderMasterFreeSlots() {
       </div>
     </article>
   `;
+}
+
+async function fillMasterMonth() {
+  try {
+    await api("/api/master/month-config", {
+      method: "POST",
+      body: JSON.stringify({
+        user: state.actor,
+        month: state.master.month,
+        workStart: "08:00",
+        workEnd: "20:00"
+      })
+    });
+    await loadMasterAvailableDays();
+    if (state.master.selectedDateIso?.startsWith(state.master.month)) {
+      await loadMasterDay(state.master.selectedDateIso);
+    }
+    renderMaster();
+    showToast("Месяц заполнен");
+  } catch {
+    showToast("Ошибка заполнения месяца");
+  }
 }
 
 async function saveMasterDayConfig() {
@@ -1088,6 +1119,7 @@ function renderMasterRequests() {
 
 function renderMaster() {
   const scheduleBody = `
+    ${renderMasterMonthTools()}
     <div class="calendar" id="masterCalendarRoot"></div>
     ${renderMasterDayConfig()}
     ${renderDayBookings()}
@@ -1119,6 +1151,7 @@ function renderMaster() {
   });
 
   document.querySelector("#saveDayConfigBtn")?.addEventListener("click", saveMasterDayConfig);
+  document.querySelector("#fillMasterMonthBtn")?.addEventListener("click", fillMasterMonth);
 
   document.querySelectorAll("[data-master-filter]").forEach((btn) => {
     btn.addEventListener("click", async () => {
