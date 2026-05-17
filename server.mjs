@@ -1041,6 +1041,11 @@ async function routeApi(req, res, url) {
     return sendJson(res, 200, { ok: true });
   }
 
+  if (req.method === "POST" && url.pathname === "/api/dev/run-jobs") {
+    await runPeriodicJobs();
+    return sendJson(res, 200, { ok: true, ran: "periodic_jobs" });
+  }
+
   return sendJson(res, 404, { ok: false, error: "NOT_FOUND" });
 }
 
