@@ -3,6 +3,7 @@ import { readFile, writeFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { URL } from "node:url";
+import { randomUUID } from "node:crypto";
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = resolve(".");
@@ -48,6 +49,17 @@ const MIME_TYPES = {
 };
 
 let storeWriteLock = Promise.resolve();
+
+function logEvent(level, message, meta = {}) {
+  const payload = {
+    ts: new Date().toISOString(),
+    level,
+    message,
+    ...meta
+  };
+  // eslint-disable-next-line no-console
+  console.log(JSON.stringify(payload));
+}
 
 function createDefaultStore() {
   return {
@@ -1116,8 +1128,24 @@ async function runPeriodicJobs() {
 }
 
 const server = createServer(async (req, res) => {
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+  const method = req.method || "GET";
+  const host = req.headers.host || "localhost";
+  const rawUrl = req.url || "/";
+  let pathForLog = rawUrl;
+  res.on("finish", () => {
+    logEvent("info", "http_request", {
+      requestId,
+      method,
+      path: pathForLog,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startedAt
+    });
+  });
   try {
-    const url = new URL(req.url || "/", `http://${req.headers.host}`);
+    const url = new URL(rawUrl, `http://${host}`);
+    pathForLog = url.pathname;
     if (url.pathname.startsWith("/api/")) {
       await routeApi(req, res, url);
       return;
@@ -1128,19 +1156,31 @@ const server = createServer(async (req, res) => {
       res.end("Not found");
     }
   } catch (error) {
+    logEvent("error", "request_failed", {
+      requestId,
+      method,
+      path: pathForLog,
+      error: String(error)
+    });
     sendJson(res, 500, { ok: false, error: "INTERNAL_ERROR", detail: String(error) });
   }
 });
 
 server.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Mini app server is running at http://localhost:${PORT}`);
+  logEvent("info", "server_started", { port: PORT });
 });
 
 setInterval(() => {
   runPeriodicJobs().catch((error) => {
-    // eslint-disable-next-line no-console
-    console.error("Periodic job error:", error);
+    logEvent("error", "periodic_job_error", { error: String(error) });
   });
 }, 60 * 1000);
+
+process.on("unhandledRejection", (reason) => {
+  logEvent("error", "unhandled_rejection", { reason: String(reason) });
+});
+
+process.on("uncaughtException", (error) => {
+  logEvent("error", "uncaught_exception", { error: String(error) });
+});
 

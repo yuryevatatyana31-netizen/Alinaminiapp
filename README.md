@@ -68,3 +68,40 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
 ## Полезные dev-endpoint'ы
 - `POST /api/dev/reset` с телом `{"confirm":"RESET"}` - сброс тестовых данных
 - `POST /api/dev/run-jobs` - принудительный запуск фоновых задач (напоминания/автозавершение)
+
+## Обязательный процесс деплоя
+Каждый деплой должен быть зафиксирован в GitHub перед выкладкой:
+
+1. Чистая рабочая директория (`git status` без изменений)
+2. `git push`
+3. Deploy-tag версии (`deploy/prod-...`)
+4. Выкатка на прод
+
+Автоматизировано скриптом:
+
+```bash
+python scripts/deploy_prod.py
+```
+
+Скрипт:
+- проверяет чистый git и ветку `main`
+- делает `git push`
+- создает и пушит deploy-tag (можно отключить `DEPLOY_COMMIT_TAG=0`)
+- выкатывает mini app в прод
+- делает health-check
+
+Необходимые env-переменные для скрипта:
+- `DEPLOY_HOST`
+- `DEPLOY_USER` (по умолчанию `root`)
+- `DEPLOY_PASSWORD`
+- `DEPLOY_REMOTE_ROOT` (по умолчанию `/opt/beauty-booking`)
+- `DEPLOY_COMPOSE_PROJECT` (по умолчанию `beauty_prod`)
+
+## Логи прода
+Быстрый просмотр логов mini app:
+
+```bash
+python scripts/tail_prod_logs.py
+```
+
+Логи приложения пишутся в JSON-строках в stdout контейнера (доступны через `docker logs`).
