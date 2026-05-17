@@ -35,7 +35,6 @@ DEPLOY_FILES = [
     ("web/index.html", "web/index.html"),
     ("web/styles.css", "web/styles.css"),
     ("web/app.js", "web/app.js"),
-    ("data/store.json", "data/store.json"),
 ]
 NODE_DOCKERFILE = """\
 FROM node:20-alpine

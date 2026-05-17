@@ -686,11 +686,7 @@ async function sendBotBookingCalendar(store, chatId, month, duration) {
 
 async function startBotBooking(store, chatId) {
   setBotBookingState(store, chatId, { step: "duration" });
-  await sendTelegramMessage(chatId, t("0JLQstC10LTQuNGC0LUg0LTQu9C40YLQtdC70YzQvdC+0YHRgtGMINC/0YDQvtGG0LXQtNGD0YDRiyDQsiDQvNC40L3Rg9GC0LDRhTo="), {
-    reply_markup: {
-      remove_keyboard: true
-    }
-  });
+  await sendTelegramMessage(chatId, t("0JLQstC10LTQuNGC0LUg0LTQu9C40YLQtdC70YzQvdC+0YHRgtGMINC/0YDQvtGG0LXQtNGD0YDRiyDQsiDQvNC40L3Rg9GC0LDRhTo="));
 }
 
 async function handleBotBookingCallback(store, callbackQuery) {
