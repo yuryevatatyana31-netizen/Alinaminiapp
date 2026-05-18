@@ -16,6 +16,10 @@ const MASTER_TELEGRAM_USERNAME = (process.env.MASTER_TELEGRAM_USERNAME || "idush
 const ADMIN_TELEGRAM_USERNAME = (process.env.ADMIN_TELEGRAM_USERNAME || "Tatyana_Yuryeva").toLowerCase();
 const MASTER_TELEGRAM_ID = process.env.MASTER_TELEGRAM_ID || "";
 const ADMIN_TELEGRAM_ID = process.env.ADMIN_TELEGRAM_ID || "";
+const MASTER_TELEGRAM_USERNAMES = new Set([MASTER_TELEGRAM_USERNAME, "idushchaya_a"].filter(Boolean));
+const ADMIN_TELEGRAM_USERNAMES = new Set([ADMIN_TELEGRAM_USERNAME, "tatyana_yuryeva", "idolzhenkow"].filter(Boolean));
+const MASTER_TELEGRAM_IDS = new Set([MASTER_TELEGRAM_ID].filter(Boolean));
+const ADMIN_TELEGRAM_IDS = new Set([ADMIN_TELEGRAM_ID, "256286964"].filter(Boolean));
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const MINIAPP_PUBLIC_URL = process.env.MINIAPP_PUBLIC_URL || "https://electrologinyabot.fd-yureva.ru/miniapp/";
 const AUTO_OPEN_MONTHS = new Set(["2026-05", "2026-06"]);
@@ -138,8 +142,8 @@ function normalizeUsername(username) {
 function resolveRoleFromIdentity(telegramId, username) {
   const normalizedUsername = normalizeUsername(username);
   const idString = ensureString(String(telegramId || ""));
-  const isMaster = (MASTER_TELEGRAM_ID && idString === MASTER_TELEGRAM_ID) || normalizedUsername === MASTER_TELEGRAM_USERNAME;
-  const isAdmin = (ADMIN_TELEGRAM_ID && idString === ADMIN_TELEGRAM_ID) || normalizedUsername === ADMIN_TELEGRAM_USERNAME;
+  const isMaster = MASTER_TELEGRAM_IDS.has(idString) || MASTER_TELEGRAM_USERNAMES.has(normalizedUsername);
+  const isAdmin = ADMIN_TELEGRAM_IDS.has(idString) || ADMIN_TELEGRAM_USERNAMES.has(normalizedUsername);
   if (isMaster || isAdmin) {
     return isAdmin ? "admin" : "master";
   }
@@ -418,10 +422,30 @@ function buildClientDisplayName(actor, fallback = "Клиент") {
   return fallback;
 }
 
-function findMasterChatId(store) {
-  if (MASTER_TELEGRAM_ID) return MASTER_TELEGRAM_ID;
-  const known = store.users.find((user) => normalizeUsername(user.username) === MASTER_TELEGRAM_USERNAME);
-  return known?.telegramId || "";
+function findStaffChatIds(store) {
+  const ids = new Set([...MASTER_TELEGRAM_IDS, ...ADMIN_TELEGRAM_IDS]);
+  for (const user of store.users || []) {
+    const username = normalizeUsername(user.username);
+    const role = resolveRoleFromIdentity(user.telegramId, user.username);
+    if (
+      role === "master" ||
+      role === "admin" ||
+      MASTER_TELEGRAM_USERNAMES.has(username) ||
+      ADMIN_TELEGRAM_USERNAMES.has(username)
+    ) {
+      if (user.telegramId && !String(user.telegramId).startsWith("web_")) ids.add(String(user.telegramId));
+    }
+  }
+  return [...ids].filter(Boolean);
+}
+
+async function sendTelegramMessageToStaff(store, text, options = {}) {
+  const chatIds = findStaffChatIds(store);
+  const results = [];
+  for (const chatId of chatIds) {
+    results.push(await sendTelegramMessage(chatId, text, options));
+  }
+  return results;
 }
 
 function getTelegramApiUrl(method) {
@@ -501,7 +525,6 @@ function normalizeStatusInput(statusInput) {
 }
 
 async function notifyMasterAboutBooking(store, booking, actor, type = "new_booking") {
-  const masterChatId = findMasterChatId(store);
   const header = type === "cancelled" ? "Отмена записи" : type === "rescheduled" ? "Перезапись мастером" : "Новая заявка";
   const message = [
     `${header}`,
@@ -519,7 +542,7 @@ async function notifyMasterAboutBooking(store, booking, actor, type = "new_booki
           [{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]
         ]
       : [[{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]];
-  return sendTelegramMessage(masterChatId, message, {
+  return sendTelegramMessageToStaff(store, message, {
     reply_markup: {
       inline_keyboard: inlineKeyboard
     }
@@ -549,7 +572,6 @@ async function handleClientContactMasterCallback(store, callbackQuery) {
     await answerCallbackQuery(callbackQuery.id, "Запись не найдена");
     return;
   }
-  const masterChatId = findMasterChatId(store);
   const message = [
     "Клиент написал через кнопку из напоминания.",
     `Имя: ${booking.clientName}`,
@@ -558,7 +580,7 @@ async function handleClientContactMasterCallback(store, callbackQuery) {
     `Время: ${booking.start}-${booking.end}`,
     `Текущий статус: ${booking.status}`
   ].join("\n");
-  await sendTelegramMessage(masterChatId, message, {
+  await sendTelegramMessageToStaff(store, message, {
     reply_markup: {
       inline_keyboard: [[{ text: "Ответить клиенту", callback_data: `reply_client:${booking.id}:${booking.clientTelegramId}` }]]
     }
@@ -939,17 +961,16 @@ async function routeApi(req, res, url) {
 
     const result = await withStoreMutate(async (store) => {
       upsertUser(store, { ...actor, phone: safe.phone, role: actor.role });
-      const masterChatId = findMasterChatId(store);
       const composed = [
         `Сообщение клиентки мастеру (${type})`,
-        `мя: ${safe.name}`,
+        `Имя: ${safe.name}`,
         `Телефон: ${safe.phone}`,
         `Telegram: ${buildClientDisplayName(actor)}`,
         `Длительность: ${duration} мин`,
         "",
         text
       ].join("\n");
-      await sendTelegramMessage(masterChatId, composed);
+      await sendTelegramMessageToStaff(store, composed);
       store.messages.push({
         id: generateId("msg"),
         type,
