@@ -486,12 +486,29 @@ function t(base64) {
   return Buffer.from(base64, "base64").toString("utf8");
 }
 
-async function sendStartMessage(chatId) {
+function buildMiniAppUrlForUser(user = {}) {
+  try {
+    const url = new URL(MINIAPP_PUBLIC_URL);
+    const telegramId = ensureString(user.id || user.telegramId || "");
+    if (telegramId) url.searchParams.set("telegramId", telegramId);
+    const username = normalizeUsername(user.username || "");
+    if (username) url.searchParams.set("username", username);
+    const firstName = ensureString(user.first_name || user.firstName || "");
+    if (firstName) url.searchParams.set("firstName", firstName);
+    const lastName = ensureString(user.last_name || user.lastName || "");
+    if (lastName) url.searchParams.set("lastName", lastName);
+    return url.toString();
+  } catch {
+    return MINIAPP_PUBLIC_URL;
+  }
+}
+
+async function sendStartMessage(chatId, user = {}) {
   const text = t("8J+RiyDQl9C00YDQsNCy0YHRgtCy0YPQudGC0LUhINCvINCx0L7Rgi3Qv9C+0LzQvtGJ0L3QuNC6INCQ0LvQuNC90Ysg0LTQu9GPINC30LDQv9C40YHQuCDQvdCwINC/0YDQvtGG0LXQtNGD0YDRiy4KCuKcje+4jyDQndCw0LbQvNC40YLQtSDQutC90L7Qv9C60YMgwqvQl9Cw0L/QuNGB0LDRgtGM0YHRj8K7LCDRh9GC0L7QsdGLINC+0YLQutGA0YvRgtGMINC80LjQvdC4LdC/0YDQuNC70L7QttC10L3QuNC1LgoK8J+Ul9CV0YHQu9C4INC60L3QvtC/0LrQsCDCq9CX0LDQv9C40YHQsNGC0YzRgdGPwrsg0L3QtSDRgdGA0LDQsdC+0YLQsNC70LAsINC90LDQttC80LjRgtC1IMKr0J7RgtC60YDRi9GC0Ywg0LIg0LHRgNCw0YPQt9C10YDQtcK7Lg==");
   const browserText = t("0J7RgtC60YDRi9GC0Ywg0LIg0LHRgNCw0YPQt9C10YDQtQ==");
   return sendTelegramMessage(chatId, text, {
     reply_markup: {
-      inline_keyboard: [[{ text: browserText, url: MINIAPP_PUBLIC_URL }]]
+      inline_keyboard: [[{ text: browserText, url: buildMiniAppUrlForUser(user) }]]
     }
   });
 }
@@ -1391,7 +1408,7 @@ async function routeApi(req, res, url) {
         };
         upsertUser(store, actor);
         if (messageText.toLowerCase().startsWith("/start")) {
-          await sendStartMessage(chatId);
+          await sendStartMessage(chatId, message.from || {});
           return { ok: true };
         }
         const pending = store.meta.pendingMasterReplies[chatId];
