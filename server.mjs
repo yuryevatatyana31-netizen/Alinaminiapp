@@ -958,11 +958,17 @@ async function routeApi(req, res, url) {
     const duration = sanitizeDuration(body.duration, 60);
     const text = ensureString(body.message);
     const type = ensureString(body.type) || "general";
+    const messageTitle =
+      type === "cancel_booking"
+        ? "Отмена записи"
+        : type === "no_slots"
+          ? "Сообщение клиентки мастеру"
+          : "Сообщение клиентки мастеру";
 
     const result = await withStoreMutate(async (store) => {
       upsertUser(store, { ...actor, phone: safe.phone, role: actor.role });
       const composed = [
-        `Сообщение клиентки мастеру (${type})`,
+        messageTitle,
         `Имя: ${safe.name}`,
         `Телефон: ${safe.phone}`,
         `Telegram: ${buildClientDisplayName(actor)}`,
