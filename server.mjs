@@ -612,7 +612,7 @@ async function handleMasterReplyStart(store, callbackQuery) {
     createdAt: new Date().toISOString()
   };
   await answerCallbackQuery(callbackQuery.id, "Напишите ответ клиенту");
-  await sendTelegramMessage(masterChatId, "Введите текст сообщения клиенту одним следующим сообщением.");
+  await sendTelegramMessage(masterChatId, "Введите текст сообщения клиенту. Можно отправить несколько сообщений подряд. Чтобы завершить ответ, напишите /stop.");
 }
 
 async function handleMasterApproveBooking(store, callbackQuery) {
@@ -1396,14 +1396,20 @@ async function routeApi(req, res, url) {
         }
         const pending = store.meta.pendingMasterReplies[chatId];
         if (pending && messageText) {
+          const lowerText = messageText.toLowerCase();
+          if (lowerText === "/stop" || lowerText === "стоп") {
+            delete store.meta.pendingMasterReplies[chatId];
+            await sendTelegramMessage(chatId, "Режим ответа клиенту завершен.");
+            return { ok: true };
+          }
           if (!pending.clientTelegramId || pending.clientTelegramId.startsWith("web_")) {
             delete store.meta.pendingMasterReplies[chatId];
             await sendTelegramMessage(chatId, "Клиент в веб-режиме: прямой ответ в Telegram недоступен.");
             return { ok: true };
           }
           await sendTelegramMessage(pending.clientTelegramId, `Сообщение от мастера:\n${messageText}`);
-          delete store.meta.pendingMasterReplies[chatId];
-          await sendTelegramMessage(chatId, "Ответ клиенту отправлен.");
+          await sendTelegramMessage(chatId, "Сообщение клиенту отправлено. Можно написать еще одно или /stop для завершения.");
+          return { ok: true };
         }
         if (messageText) {
           await handleBotBookingMessage(store, chatId, messageText, actor);
