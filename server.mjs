@@ -933,8 +933,13 @@ async function routeApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/client/history") {
     const store = await loadStore();
     const telegramId = ensureString(url.searchParams.get("telegramId"));
+    const phone = normalizePhone(url.searchParams.get("phone"));
     const items = store.bookings
-      .filter((booking) => booking.clientTelegramId === telegramId)
+      .filter((booking) => {
+        const sameTelegram = telegramId && booking.clientTelegramId === telegramId;
+        const samePhone = phone && normalizePhone(booking.clientPhone) === phone;
+        return sameTelegram || samePhone;
+      })
       .sort((a, b) => {
         if (a.date === b.date) return a.start.localeCompare(b.start);
         return a.date.localeCompare(b.date);

@@ -430,11 +430,14 @@ async function submitBooking() {
 }
 
 async function loadHistory() {
-  if (!state.actor.telegramId) {
+  const phone = normalizePhone(state.client.phone || localStorage.getItem("electro_client_phone") || "");
+  if (!state.actor.telegramId && !phone) {
     state.history = [];
     return;
   }
-  const data = await api(`/api/client/history?telegramId=${state.actor.telegramId}`);
+  const data = await api(
+    `/api/client/history?telegramId=${encodeURIComponent(state.actor.telegramId || "")}&phone=${encodeURIComponent(phone)}`
+  );
   state.history = data.items || [];
 }
 
