@@ -1069,12 +1069,15 @@ async function routeApi(req, res, url) {
     const body = await parseBody(req);
     const actor = getActorFromRequest(req, url, body);
     const bookingId = ensureString(body.bookingId);
+    const phone = normalizePhone(body.phone || actor.phone);
     if (!bookingId) return sendJson(res, 400, { ok: false, error: "BOOKING_ID_REQUIRED" });
 
     const result = await withStoreMutate(async (store) => {
       const booking = store.bookings.find((item) => item.id === bookingId);
       if (!booking) return { ok: false, status: 404, error: "BOOKING_NOT_FOUND" };
-      if (booking.clientTelegramId !== actor.telegramId) {
+      const sameTelegram = actor.telegramId && booking.clientTelegramId === actor.telegramId;
+      const samePhone = phone && normalizePhone(booking.clientPhone) === phone;
+      if (!sameTelegram && !samePhone) {
         return { ok: false, status: 403, error: "FORBIDDEN" };
       }
       const startUtcMs = toUtcMsForMoscowDateTime(booking.date, booking.start);

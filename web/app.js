@@ -459,7 +459,8 @@ async function handleHistoryCancel(bookingId) {
       method: "POST",
       body: JSON.stringify({
         user: state.actor,
-        bookingId
+        bookingId,
+        phone
       })
     });
     await api("/api/client/send-master-message", {
