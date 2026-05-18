@@ -564,6 +564,19 @@ async function notifyClientWithReminder(store, booking, beforeHours) {
   });
 }
 
+async function notifyClientBookingConfirmed(booking) {
+  if (!booking.clientTelegramId || booking.clientTelegramId.startsWith("web_")) return;
+  await sendTelegramMessage(
+    booking.clientTelegramId,
+    `Ваша заявка согласована.\nДата: ${formatDateRu(booking.date)}\nВремя: ${booking.start}-${booking.end}\nДлительность: ${booking.durationMinutes} мин.`,
+    {
+      reply_markup: {
+        inline_keyboard: [[{ text: "Написать мастеру", callback_data: `contact_master:${booking.id}` }]]
+      }
+    }
+  );
+}
+
 async function handleClientContactMasterCallback(store, callbackQuery) {
   const callbackData = ensureString(callbackQuery.data);
   const [, bookingId] = callbackData.split(":");
@@ -617,12 +630,7 @@ async function handleMasterApproveBooking(store, callbackQuery) {
   booking.status = STATUS_CONFIRMED;
   booking.updatedAt = new Date().toISOString();
   await answerCallbackQuery(callbackQuery.id, "Заявка согласована");
-  if (booking.clientTelegramId && !booking.clientTelegramId.startsWith("web_")) {
-    await sendTelegramMessage(
-      booking.clientTelegramId,
-      `Ваша заявка согласована.\nДата: ${formatDateRu(booking.date)}\nВремя: ${booking.start}-${booking.end}\nДлительность: ${booking.durationMinutes} мин.`
-    );
-  }
+  await notifyClientBookingConfirmed(booking);
 }
 
 function getBotBookingState(store, chatId) {
@@ -1259,7 +1267,9 @@ async function routeApi(req, res, url) {
       if (!booking) return { ok: false, status: 404, error: "BOOKING_NOT_FOUND" };
       booking.status = nextStatus;
       booking.updatedAt = new Date().toISOString();
-      if (booking.clientTelegramId) {
+      if (nextStatus === STATUS_CONFIRMED) {
+        await notifyClientBookingConfirmed(booking);
+      } else if (booking.clientTelegramId) {
         await sendTelegramMessage(
           booking.clientTelegramId,
           `Статус вашей записи обновлен: ${formatBookingCompact(booking)}\nНовый статус: ${booking.status}`
