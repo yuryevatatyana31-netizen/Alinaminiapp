@@ -472,7 +472,7 @@ async function sendStartMessage(chatId) {
       resize_keyboard: true
     }
   });
-  return sendTelegramMessage(chatId, browserText, {
+  return sendTelegramMessage(chatId, "\u2063", {
     reply_markup: {
       inline_keyboard: [[{ text: browserText, url: MINIAPP_PUBLIC_URL }]]
     }
