@@ -464,15 +464,8 @@ function t(base64) {
 
 async function sendStartMessage(chatId) {
   const text = t("8J+RiyDQl9C00YDQsNCy0YHRgtCy0YPQudGC0LUhINCvINCx0L7Rgi3Qv9C+0LzQvtGJ0L3QuNC6INCQ0LvQuNC90Ysg0LTQu9GPINC30LDQv9C40YHQuCDQvdCwINC/0YDQvtGG0LXQtNGD0YDRiy4KCuKcje+4jyDQndCw0LbQvNC40YLQtSDQutC90L7Qv9C60YMgwqvQl9Cw0L/QuNGB0LDRgtGM0YHRj8K7LCDRh9GC0L7QsdGLINC+0YLQutGA0YvRgtGMINC80LjQvdC4LdC/0YDQuNC70L7QttC10L3QuNC1LgoK8J+Ul9CV0YHQu9C4INC60L3QvtC/0LrQsCDCq9CX0LDQv9C40YHQsNGC0YzRgdGPwrsg0L3QtSDRgdGA0LDQsdC+0YLQsNC70LAsINC90LDQttC80LjRgtC1IMKr0J7RgtC60YDRi9GC0Ywg0LIg0LHRgNCw0YPQt9C10YDQtcK7Lg==");
-  const bookText = t("0JfQsNC/0LjRgdCw0YLRjNGB0Y8=");
   const browserText = t("0J7RgtC60YDRi9GC0Ywg0LIg0LHRgNCw0YPQt9C10YDQtQ==");
-  await sendTelegramMessage(chatId, text, {
-    reply_markup: {
-      keyboard: [[{ text: bookText }]],
-      resize_keyboard: true
-    }
-  });
-  return sendTelegramMessage(chatId, "\u2063", {
+  return sendTelegramMessage(chatId, text, {
     reply_markup: {
       inline_keyboard: [[{ text: browserText, url: MINIAPP_PUBLIC_URL }]]
     }
